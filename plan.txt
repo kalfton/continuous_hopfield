@@ -1,0 +1,13 @@
+1. Current code can't successfully train the network. If it is not because of bug. Then One possibility is that the alg. works much better in [-1 1] case (try this hypo)
+Also try my method 3, see if they the memory in discrete case is still stable in the continuous case.
+2. Try for a trained network, assign it with different \tau with the same initial state, see if it will end up in different local minima.
+
+Make the state represent g(x) rather than x
+
+# It looks like the function: 1/(1+torch.exp(-beta*x)) somehow will make the gradient goes to zeros.
+Solution: use torch.sigmoid() instead of self-defined function.
+
+
+A very interesting phenomena: Training Deep recurrence is worse than training shallow recurrence!!!!!
+
+For shallow recurrence (1 step) Adam better than SGD, but for deep recurrence(>=2 steps) SGD better than Adam.
