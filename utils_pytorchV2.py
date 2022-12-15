@@ -108,12 +108,13 @@ def train_PLA(network:Hopfield_network, patterns:torch.tensor, lr=0.01, k1 = 0.5
 
 def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_train = 0.5):
     # Move the network to GPU if possible:
-    if c:  
+    if torch.cuda.is_available():
         dev = "cuda:0"
     elif torch.backends.mps.is_available():
         dev = "mps"
     else:  
-        dev = "cpu"  
+        dev = "cpu"
+    dev="cpu"
     device = torch.device(dev)
 
     network = network.to(device)

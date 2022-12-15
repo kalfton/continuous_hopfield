@@ -31,8 +31,8 @@ class Hopfield_network(nn.Module):
     def __init__(self, n_neuron, dt=0.1):
         super().__init__()
         self.n_neuron = n_neuron
-        self.tau = torch.ones(n_neuron)
-        self.beta = torch.ones(n_neuron)*10
+        self.tau = nn.Parameter(torch.ones(n_neuron), requires_grad=False)
+        self.beta = nn.Parameter(torch.ones(n_neuron)*10,requires_grad=False)
         # if dt_train is None:
         #     alpha = torch.ones(n_neuron)
         # else:
@@ -40,11 +40,11 @@ class Hopfield_network(nn.Module):
         # self.alpha = alpha
         # self.oneminusalpha = 1-alpha
         self.h2h = Symmetric_Linear(n_neuron)
-        self.max_x = 50/self.beta.max()
+        self.max_x = 50/self.beta.max().item()
         self.dt = dt
 
-        self.state_x = torch.zeros(n_neuron)
-        self.state_g = self.g(self.state_x, self.beta)
+        self.state_x = nn.Parameter(torch.zeros(n_neuron),requires_grad=False)
+        self.state_g = nn.Parameter(self.g(self.state_x, self.beta),requires_grad=False)
 
     def W(self):
         return self.h2h.weight.detach()

@@ -88,6 +88,9 @@ plt.title(f'capacity: {flag_n/n_neuron}')
 plt.show(block=False)
 plt.savefig('capacity_analysis_PLA.png')
 
+with open('logging.txt','a') as f:
+    f.write("--- %s seconds ---" % (time.time() - start_time))
+
 print("--- %s seconds ---" % (time.time() - start_time))
 print('end')
 
