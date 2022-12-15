@@ -2,7 +2,7 @@ import torch
 import torch.optim as optim
 import numpy as np
 from torch import nn
-from hopfield_class_torch import Hopfield_network
+from utils_pytorch import Hopfield_network_torch
 from utils import make_pattern
 from numpy import random
 from matplotlib import pyplot as plt
@@ -16,7 +16,7 @@ torch.manual_seed(0)
 random.seed(0)
 
 
-network2 = Hopfield_network(n_neuron, dt = 0.1)
+network2 = Hopfield_network_torch(n_neuron, dt = 0.1)
 patterns = torch.from_numpy(make_pattern(n_pattern, n_neuron)).type(torch.float)
 
 print(network2)

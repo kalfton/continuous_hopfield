@@ -34,6 +34,10 @@ def train_equalibium_prop(network:Hopfield_network, P, lr=0.01):
 
         if n_loop%500==0:
             print(f'{n_loop} of loops done, out of {network.max_loop}')
+
+        #debug
+        if np.any(np.isnan(network.W)):
+            print('pause')
         
         n_loop+=1
     if n_loop>=network.max_loop:

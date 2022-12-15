@@ -8,6 +8,33 @@ Make the state represent g(x) rather than x
 Solution: use torch.sigmoid() instead of self-defined function.
 
 
+(12/6/2022)
 A very interesting phenomena: Training Deep recurrence is worse than training shallow recurrence!!!!!
 
 For shallow recurrence (1 step) Adam better than SGD, but for deep recurrence(>=2 steps) SGD better than Adam.
+
+(12/7/2022)
+Correction: Neither Adam or SGD successfully learn the patterns. They are mostly arrived at some gradient vanishing place and can't not get out after few updates.
+
+(12/9/2022)
+Adam looks much better than SGD to train the network.
+
+Equilibium prop: When I set a large gamma(=100) the evolution can not converge to an stable point...
+
+To do: convert all 3 methods into torch implementation!
+print the loss in equilibium prop training!
+Method 1 evaluate much slower, I can increase "dt" during training?
+
+To do: set_W() function, and set_b() function. And make the alg.1 and alg.3's training algothms work on pytorch.
+
+To do: (1). Compare the Weight matrix and bias between different training methods.(Done)
+(2)Explore which alg. can train the network with more pattern stored.((PLA) \appox (back prop) > (eq prop))
+(3) also, in method 1 and 2 is the weight always symmetric? (No, have made them symmetric now)
+
+(4) Make the initiation of weight symmetric! (Done)
+Theoritically, Method 1 and 3 should give symmetric weight, but not Method 2. How to solve it? (Done, just force the matrix to be symmetric when forward and backprop)
+
+To do:
+learn how to make the parallel computation code in python.
+
+Back prop training method gives huge capacity than I expected... is this realistic? (Solved. In eq_prop and back_prop, the diagonal line is not restricted to be zero, thus make the pattern self sustanted.)

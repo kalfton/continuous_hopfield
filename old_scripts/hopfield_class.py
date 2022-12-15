@@ -10,8 +10,9 @@ class Hopfield_network:
         self.n_neuron = n_neuron
         self.W = np.zeros([n_neuron, n_neuron])
         self.b = np.zeros(n_neuron) # threshold for each neuron
-        self.tau = random.rand(n_neuron)
-        self.beta = np.ones(n_neuron)*100
+        self.tau = np.ones(n_neuron)
+        self.beta = np.ones(n_neuron)*10
+        self.max_x = 50/self.beta.max()
         self.state_x = np.zeros(n_neuron)
         self.state_g = self.g(self.state_x, self.beta)
 
@@ -42,18 +43,25 @@ class Hopfield_network:
         # Euler method: 
         dx = dt/self.tau*(self.W@self.state_g+self.b-self.state_x)
         self.state_x = self.state_x+dx
+        # clip to prevent state_x goes to inf
+        self.state_x = np.clip(self.state_x, -self.max_x, self.max_x)
         self.state_g = self.g(self.state_x, self.beta)
+        
 
     def evolve(self, P):
         self.init_state_g(P)
         n_loop=1
         while n_loop<=self.max_loop:
             n_loop = n_loop+1
-            old_state_x = self.state_x.copy()
+            old_state_g = self.state_g.copy()
             self.forward()
 
-            if np.max(np.abs(self.state_x-old_state_x))<self.min_error:
+            if np.max(np.abs(self.state_g-old_state_g))<self.min_error:
                 break
+
+            # for debugging:
+            if np.any(np.isnan(self.state_g)):
+                print('pause')
         
         if n_loop>=self.max_loop:
             converge = False
@@ -71,10 +79,10 @@ class Hopfield_network:
         n_loop=1
         while n_loop<=self.max_loop:
             n_loop = n_loop+1
-            old_state_x = self.state_x.copy()
+            old_state_g = self.state_g.copy()
             self.forward_F(target, gamma)
 
-            if np.max(np.abs(self.state_x-old_state_x))<self.min_error:
+            if np.max(np.abs(self.state_g-old_state_g))<self.min_error:
                 break
         
         if n_loop>=self.max_loop:

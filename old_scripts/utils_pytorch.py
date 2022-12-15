@@ -19,11 +19,14 @@ class Hopfield_network_torch(nn.Module):
     # Thought: In training and evaulation, we use different dt?
     # Reasoning: During training dt can be large make the training process easier.
     # but during evaluation (memory retrieval) the dynamics should be more precise.
+    min_error = 1e-5
+    max_loop = 10000
+
     def __init__(self, n_neuron, n_step = 1, dt = None):
         super().__init__()
         self.n_neuron = n_neuron
         self.tau = torch.ones(n_neuron)
-        self.beta = torch.ones(n_neuron)*100
+        self.beta = torch.ones(n_neuron)*10
         if dt is None:
             alpha = torch.ones(n_neuron)
         else:
@@ -33,6 +36,7 @@ class Hopfield_network_torch(nn.Module):
         self.oneminusalpha = 1-alpha
         self.h2h = nn.Linear(n_neuron, n_neuron)
         self.n_step = n_step
+        self.max_x = 50/self.beta.max()
         # self.state_x = torch.zeros(n_neuron)
         # self.state_g = self.g(self.state_x, self.beta)
 
@@ -59,6 +63,7 @@ class Hopfield_network_torch(nn.Module):
     def recurrence(self, state_x, state_g):
         pre_activation = self.h2h(state_g)
         state_x = self.alpha*pre_activation + self.oneminusalpha*state_x
+        state_x = torch.clip(state_x, -self.max_x, self.max_x)
         state_g = self.g(state_x, self.beta)
         return state_x, state_g
 
@@ -69,6 +74,25 @@ class Hopfield_network_torch(nn.Module):
             state_x, state_g = self.recurrence(state_x, state_g)
 
         return state_g
+
+    def evolve(self, state_g):
+        #self.init_state(state_g)
+        state_x = self.g_inverse(state_g,self.beta)       
+
+        n_loop=1
+        while n_loop<=self.max_loop:
+            n_loop = n_loop+1
+            old_state_x = state_x.clone()
+            state_x, state_g = self.recurrence(state_x, state_g)
+
+            if torch.max(torch.abs(state_x-old_state_x))<self.min_error:
+                break
+        
+        if n_loop>=self.max_loop:
+            converge = False
+        else:
+            converge = True
+        return state_g, converge
         
 
 
