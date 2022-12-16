@@ -25,7 +25,7 @@ class Symmetric_Linear(nn.Module):
 
 
 class Hopfield_network(nn.Module):
-    max_loop = 20000
+    max_loop = 10000
     min_error = 1e-7
 
     def __init__(self, n_neuron, dt=0.1):

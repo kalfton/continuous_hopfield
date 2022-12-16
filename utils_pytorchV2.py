@@ -162,7 +162,7 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
         success = True
 
     plt.figure()
-    plt.plot(np.arange(0, n_loop, 100), training_loss.to(torch.device("cpu")))
+    plt.plot(np.arange(0, n_loop, 100), training_loss)
     plt.show(block = False)
     network = network.to(torch.device("cpu"))
 
