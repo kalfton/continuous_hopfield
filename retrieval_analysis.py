@@ -42,8 +42,8 @@ init_patterns, target_pattern_ind = utils_retr.create_init_pattern(patterns, n_i
 # set the network with different {\tau_i}, and compare the difference.
 # Randomly generate {\tau_i} sets:
 max_allow = 0.1
-n_t_set = 10
-t_sets = 0.1+random.rand(n_t_set, n_neuron)*0.9 # prevent tau too small or too big.
+n_t_set = 4
+t_sets = 0.2+random.rand(n_t_set, n_neuron)*0.8 # prevent tau too small or too big.
 #normalize them:
 normalizer = 1/np.sqrt(np.mean(1/t_sets**2, axis=1))
 t_sets = t_sets/normalizer[:,None]
@@ -89,6 +89,13 @@ for ii in range(n_t_set):
     average_retrieval_time[ii] = np.mean(retrieval_time)
     min_retrieval_time[ii] = np.min(retrieval_time)
 
+# plot the each sets success rate and retrieving time as bar plot.
+fig, axes = plt.subplots(3,3, figsize = [19,10])
+plt.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.9, wspace=0.4, hspace=0.4)
+
+axes[0,0].bar(range(n_t_set), per_success_retrieval)
+axes[0,1].bar(range(n_t_set), average_retrieval_time)
+plt.savefig("retrieval plot of n tau set.jpg")
 
 print("--- %s seconds ---" % (time.time() - start_time))
 

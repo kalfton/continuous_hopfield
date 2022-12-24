@@ -31,7 +31,7 @@ class Hopfield_network(nn.Module):
     def __init__(self, n_neuron, dt=0.1):
         super().__init__()
         self.n_neuron = n_neuron
-        self.tau = torch.ones(n_neuron)
+        self.tau = nn.Parameter(torch.ones(n_neuron))
         self.beta = nn.Parameter(torch.ones(n_neuron)*10,requires_grad=False)
         # if dt_train is None:
         #     alpha = torch.ones(n_neuron)
@@ -92,9 +92,9 @@ class Hopfield_network(nn.Module):
 
     def set_tau(self, tau):
         if type(tau)==np.ndarray:
-            self.tau = torch.from_numpy(tau).float()
+            self.tau = nn.Parameter(torch.from_numpy(tau).float())
         elif type(tau)==torch.Tensor:
-            self.tau = tau
+            self.tau = nn.Parameter(tau.detach())
         else:
             raise TypeError("Wrong input type")
 

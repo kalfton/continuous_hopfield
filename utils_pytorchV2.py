@@ -161,7 +161,7 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
         dev = "mps"
     else:  
         dev = "cpu"
-    dev="cpu"
+    dev = "cpu" # here the cpu is faster than gpu
     device = torch.device(dev)
 
     network = network.to(device)
@@ -201,7 +201,7 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
 
         if n_loop%100==0:
             print(f'Step: {n_loop}, Loss: {loss}')
-            training_loss.append(loss.detach().numpy().item())
+            training_loss.append(loss.detach().cpu().numpy().item())
 
         n_loop+=1
 
