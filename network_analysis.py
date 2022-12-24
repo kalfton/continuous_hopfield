@@ -8,10 +8,10 @@ import pickle
 import time
 import utils_pytorchV2 as utils
 
-random.seed(0)
-torch.manual_seed(0)
+random.seed(1)
+torch.manual_seed(1)
 n_neuron = 50
-n_pattern = 40
+n_pattern = 50
 
 start_time = time.time()
 
@@ -34,9 +34,10 @@ network1 = Hopfield_network(n_neuron, dt=0.01)
 network2 = Hopfield_network(n_neuron, dt=0.01)
 network3 = Hopfield_network(n_neuron, dt=0.01)
 
-network1, success = utils.train_equalibium_prop(network1, patterns, lr=0.01, dt_train = 0.5)
-network2, success = utils.train_back_prop(network2, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
-network3, success = utils.train_PLA(network3, patterns, lr=0.01, k1 = 0.0, k2 = 2)
+network1, success, stored_patterns1 = utils.train_equalibium_prop(network1, patterns, lr=0.01, max_loop_train=100, dt_train = 0.5, gamma=50)
+network2, success, stored_patterns2 = utils.train_back_prop(network2, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
+network3, success, stored_patterns3 = utils.train_PLA(network3, patterns, lr=0.01, k1 = 0.0, k2 = 2)
+
 
 
 # Compare the difference in parameters of the three trained network:
@@ -91,15 +92,15 @@ with torch.no_grad():
 
 
 # save the trained weight bias and stored patterns
-data = [network1, patterns]
+data = [network1, stored_patterns1]
 with open('trained_network_torch_eq_prop.pickle', 'wb') as f:
     pickle.dump(data, f)
 
-data = [network2, patterns]
+data = [network2, stored_patterns2]
 with open('trained_network_torch_back_prop.pickle', 'wb') as f:
     pickle.dump(data, f)
 
-data = [network3, patterns]
+data = [network3, stored_patterns3]
 with open('trained_network_torch_PLA.pickle', 'wb') as f:
     pickle.dump(data, f)
 

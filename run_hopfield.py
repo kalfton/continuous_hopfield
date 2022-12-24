@@ -10,37 +10,38 @@ import utils_pytorchV2 as utils
 random.seed(0)
 torch.manual_seed(0)
 n_neuron = 50
-n_pattern = 100
+n_pattern = 50
 
 start_time = time.time()
 
-# with open('trained_network_PLA.pickle', 'rb') as f:
-#     data_saved = pickle.load(f)
-# (network1, patterns) = data_saved
+with open('trained_network_torch_back_prop.pickle', 'rb') as f:
+    data_saved = pickle.load(f)
+(network1, patterns) = data_saved
 
 # patterns = utils.make_pattern(n_pattern, n_neuron)
 # network1 = Hopfield_network(n_neuron, dt=0.01)
 
-# #network1, success = utils.train_equalibium_prop(network1, patterns, lr=0.01, dt_train = 0.5)
-# #network1, success = utils.train_PLA(network1, patterns, lr=0.01, k1 = 0.5, k2 = 2)
-# network1, success = utils.train_back_prop(network1, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
+# network1, success, stored_patterns1 = utils.train_equalibium_prop(network1, patterns, lr=0.01, max_loop_train=100, dt_train = 0.5, gamma=50)
+# network1, success, stored_patterns2 = utils.train_back_prop(network1, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
+# network1, success, stored_patterns3 = utils.train_PLA(network1, patterns, lr=0.01, k1 = 0.0, k2 = 2)
 
-# #Evaluation: 
-# # sanity check:
-# with torch.no_grad():
-#     final_pattern, converge= network1.evolve(patterns[4])
-#     print(torch.abs(final_pattern-patterns[4]))
+#Evaluation: 
+# sanity check:
+pattern_id=21
+with torch.no_grad():
+    final_pattern, converge, retrieval_time= network1.evolve_batch(patterns[[pattern_id]])
+    print(torch.abs(final_pattern-patterns[pattern_id]))
 
-# plt.figure()
-# plt.hist(torch.abs(final_pattern-patterns[4]))
-# plt.show(block=False)
+plt.figure()
+plt.hist(torch.abs(final_pattern-patterns[pattern_id]))
+plt.show(block=False)
 
-# # save the trained weight bias and stored patterns
+# save the trained weight bias and stored patterns
 # data = [network1, patterns]
 # with open('trained_network_torch.pickle', 'wb') as f:
 #     pickle.dump(data, f)
 
-# print("--- %s seconds ---" % (time.time() - start_time))
+print("--- %s seconds ---" % (time.time() - start_time))
 
 
 
@@ -63,8 +64,8 @@ while (start_n <= end_n):
     for j in range(n_repeat):
         patterns = utils.make_pattern(mid_n, n_neuron)
         network = Hopfield_network(n_neuron, dt=0.01)
-        #network1, success = utils.train_equalibium_prop(network, patterns, lr=0.01, dt_train = 0.5)
-        network1, success = utils.train_back_prop(network, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
+        network1, success = utils.train_equalibium_prop(network, patterns, lr=0.01, dt_train = 0.5)
+        #network1, success = utils.train_back_prop(network, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
         #network1, success = utils.train_PLA(network, patterns, lr=0.01, k1 = 0.0, k2 = 2)
 
         all_count += 1

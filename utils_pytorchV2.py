@@ -7,16 +7,34 @@ from matplotlib import pyplot as plt
 from cmath import inf
 from scipy import stats
 import math
+import time
 from hopfield_class_torch import Hopfield_network
+
+act_state = 1-1e-5
+inact_state = 1e-5 # when the state_g is equal to 0 or 1, state_x will go to infinity
+training_max_iter = 20000
 
 def make_pattern(n_pattern, n_neuron, perc_active = 0.5):
     patterns = torch.from_numpy(random.rand(n_pattern, n_neuron)).type(torch.float32)
-    patterns[patterns>1-perc_active]=1-1e-5
-    patterns[patterns<=1-perc_active]=1e-5 # when the state_g is equal to 0 or 1, state_x will go to infinity
+    patterns[patterns>1-perc_active]=act_state
+    patterns[patterns<=1-perc_active]=inact_state
     return patterns
 
-def train_equalibium_prop(network:Hopfield_network, patterns:torch.tensor, lr=0.01, dt_train=0.1, max_loop_train=100, gamma = 100):
-    
+def retreive_batch_patterns(patterns, network):
+    # This function is slow in running speed, use network.evolve_batch(...) instead.
+
+    n_pattern = patterns.shape[0]
+    n_neuron = patterns.shape[1]
+    stored_patterns = torch.zeros((n_pattern, n_neuron))
+    retrieval_time = torch.zeros(n_pattern)
+    done = torch.zeros(n_pattern)
+    for i in range(n_pattern):
+        P = patterns[i]
+        stored_patterns[i,:], done[i], retrieval_time[i] = network.evolve(P)
+    return stored_patterns, done, retrieval_time
+
+def train_equalibium_prop(network:Hopfield_network, patterns:torch.tensor, lr=0.01, dt_train=0.1, max_loop_train=100, gamma = 1):
+    #batch the training set decrease the capacity, why?
     n_pattern = patterns.shape[0]
     lossfun = nn.MSELoss()
     training_loss = []
@@ -28,19 +46,38 @@ def train_equalibium_prop(network:Hopfield_network, patterns:torch.tensor, lr=0.
     network.max_loop = max_loop_train
 
     n_loop=0
-    while  n_loop<=original_max_loop:
-        losses = torch.zeros(n_pattern)
-        for i in range(n_pattern):
-            rho1, converge = network.evolve(patterns[i])
-            rho2, converge = network.evolve(rho1, patterns[i], gamma = gamma)
+    while  n_loop<=training_max_iter:
+        # losses = torch.zeros(n_pattern)
+        # for i in range(n_pattern):
+        #     rho1, converge, _ = network.evolve(patterns[i])
+        #     rho2, converge, _ = network.evolve(rho1, patterns[i], gamma = gamma)
 
-            W = network.W()+lr*(rho2[:,None]@rho2[None, :]-rho1[:,None]@rho1[None, :])
+        #     W = network.W()+lr*(rho2[:,None]@rho2[None, :]-rho1[:,None]@rho1[None, :])
+        #     W = W-torch.diag(torch.diag(W))
+        #     # network.set_W(W)
+        #     # network.set_b(network.b()+lr*(rho2-rho1))
+
+        #     losses[i] = lossfun(patterns[i], rho1)
+        # loss = torch.mean(losses)
+
+        # divide the pattern into minibatch randomly to add stocastic to the training:
+        n_mini_batch=2
+        batchsize = int(torch.ceil(torch.tensor(n_pattern/n_mini_batch)))
+        pattern_set = torch.split(patterns[torch.randperm(n_pattern),:], batchsize, dim=0)
+
+        losses = []
+        for batched_patterns in pattern_set:
+            rho1_batch, converge, _ = network.evolve_batch(batched_patterns)
+            rho2_batch, converge, _ = network.evolve_batch(rho1_batch, batched_patterns, gamma = gamma)
+
+            W = network.W()+lr*(rho2_batch.T@rho2_batch-rho1_batch.T@rho1_batch)
             W = W-torch.diag(torch.diag(W))
             network.set_W(W)
-            network.set_b(network.b()+lr*(rho2-rho1))
-            losses[i] = lossfun(patterns[i], rho1)
-        loss = torch.mean(losses)
-        
+            network.set_b(network.b()+lr*torch.sum(rho2_batch-rho1_batch, dim=0))
+            losses.append(lossfun(batched_patterns, rho1_batch))
+        loss = torch.mean(torch.tensor(losses))
+
+        network.energy_func(network.g_inverse(patterns[1],network.beta), patterns[1])
         if loss<network.min_error:
             break
 
@@ -49,7 +86,7 @@ def train_equalibium_prop(network:Hopfield_network, patterns:torch.tensor, lr=0.
             training_loss.append(loss.detach().numpy().item())
         
         n_loop+=1
-    if n_loop>=original_max_loop:
+    if n_loop>=training_max_iter:
         success = False
     else:
         success = True
@@ -57,13 +94,15 @@ def train_equalibium_prop(network:Hopfield_network, patterns:torch.tensor, lr=0.
     network.dt = original_dt
     network.max_loop = original_max_loop
     torch.set_grad_enabled(True)
-
-    plt.figure()
-    plt.plot(np.arange(0, n_loop, 100), training_loss)
-    plt.show(block = False)
     
+    # Get the most acurate patterns that is stored in the network:
+    stored_patterns, success, retrieval_time = network.evolve_batch(patterns)
 
-    return network, success
+    # plt.figure()
+    # plt.plot(np.arange(0, n_loop, 100), training_loss)
+    # plt.show(block = False)
+
+    return network, success, stored_patterns
 
 
 def train_PLA(network:Hopfield_network, patterns:torch.tensor, lr=0.01, k1 = 0.5, k2 = 2):
@@ -71,7 +110,7 @@ def train_PLA(network:Hopfield_network, patterns:torch.tensor, lr=0.01, k1 = 0.5
 
     torch.set_grad_enabled(False)
     n_loop=1
-    while  n_loop<=network.max_loop:
+    while  n_loop<=training_max_iter:
         check_array = torch.zeros(n_pattern).type(torch.bool)
         for i in range(n_pattern):
             P = patterns[i]
@@ -94,17 +133,25 @@ def train_PLA(network:Hopfield_network, patterns:torch.tensor, lr=0.01, k1 = 0.5
             break
 
         if n_loop%100==0:
-            print(f'{n_loop} of loops done, out of {network.max_loop}')
+            print(f'{n_loop} of loops done, out of {training_max_iter}')
         
         n_loop+=1
-    if n_loop>=network.max_loop:
+    if n_loop>=training_max_iter:
         success = False
     else:
         success = True
+    
+    # Get the most acurate patterns that is stored in the network:
+    stored_patterns, success, retrieval_time = network.evolve_batch(patterns)
+
+    # start_time = time.time()
+    # stored_patterns2, success, retrieval_time= retreive_batch_patterns(patterns, network)
+    # print("--- %s seconds ---" % (time.time() - start_time))
+
 
     torch.set_grad_enabled(True)
 
-    return network, success
+    return network, success, stored_patterns
 
 def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_train = 0.5):
     # Move the network to GPU if possible:
@@ -122,6 +169,7 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
     
     #BPTT Training: 
     n_pattern = patterns.shape[0]
+    n_neuron = patterns.shape[1]
 
     optimizer = optim.Adam(network.parameters(), lr=lr)
     lossfun = nn.MSELoss()
@@ -129,14 +177,19 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
 
     training_loss = []
     n_loop = 0
-    while n_loop<network.max_loop:
-        losses = torch.zeros(n_pattern)
-        for i in range(n_pattern):
-            P = patterns[i]
-            optimizer.zero_grad()
-            retrieve_P = network(P, n_step, dt_train)
-            losses[i] = lossfun(P, retrieve_P)
-        loss = torch.mean(losses)
+    while n_loop<training_max_iter:
+        # losses = torch.zeros(n_pattern)
+        # optimizer.zero_grad()
+        # for i in range(n_pattern):
+        #     P = patterns[i]
+        #     retrieve_P = network(P, n_step, dt_train)
+        #     losses[i] = lossfun(P, retrieve_P)
+        # loss = torch.mean(losses)
+
+        optimizer.zero_grad()
+        retrieve_patterns = network(patterns, n_step, dt_train)
+        loss = lossfun(patterns, retrieve_patterns)
+
         if loss<network.min_error:
             break
         loss.backward()
@@ -150,58 +203,22 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
             print(f'Step: {n_loop}, Loss: {loss}')
             training_loss.append(loss.detach().numpy().item())
 
-        #For debugging: 
-        if torch.isnan(network.h2h.weight.min()):
-            print('pause')
-
         n_loop+=1
 
-    if n_loop>=network.max_loop:
+    if n_loop>=training_max_iter:
         success = False
     else:
         success = True
 
-    plt.figure()
-    plt.plot(np.arange(0, n_loop, 100), training_loss)
-    plt.show(block = False)
     network = network.to(torch.device("cpu"))
 
-    return network, success
+    # Get the most acurate patterns that is stored in the network:
+    stored_patterns, success, retrieval_time = network.evolve_batch(patterns)
 
-
-def compare_rho_permutation_test(X1:np.ndarray, Y1:np.ndarray, X2:np.ndarray, Y2:np.ndarray, nperm = 5000):
-    # input are two pairs of data, and we compare their correlation 
-    # fix the # permutations
-
-    size1 = X1.shape[0]
-    size2 = X2.shape[0]
-
-    # set a void vector for the dif of correl.
-    corr_diff = np.zeros(nperm)
-
-    # now start permuting
-    for i in range(nperm):
-        # sample an index
-        if size1==size2:
-            idx1 = random.choice(size1, size1, replace=True)
-            idx2 = idx1
-        else:
-            idx1 = random.choice(size1, size1, replace=True)
-            idx2 = random.choice(size2, size2, replace=True)
-
-        # calculate the permuted correlation in the first condition
-        (corr1, p) = stats.spearmanr(X1[idx1], Y1[idx1])
-
-        # calculate the permuted correlation in the second condition
-        (corr2, p) = stats.spearmanr(X2[idx2], Y2[idx2])
-
-        # store the dif. of correlations
-        corr_diff[i] = corr1-corr2
-
+    # plt.figure()
+    # plt.plot(np.arange(0, n_loop, 100), training_loss)
+    # plt.show(block = False)
     
-    # compute the Monte Carlo approximation of the permutation p-value
-    if np.any((corr_diff>0) | (corr_diff<0)):
-        p = 2*min(np.mean(corr_diff>0), np.mean(corr_diff<0))
-    else:
-        p = np.nan
-    return p
+
+    return network, success, stored_patterns
+
