@@ -12,7 +12,7 @@ from hopfield_class_torch import Hopfield_network
 
 act_state = 1-1e-5
 inact_state = 1e-5 # when the state_g is equal to 0 or 1, state_x will go to infinity
-training_max_iter = 20000
+training_max_iter = 60000
 
 def make_pattern(n_pattern, n_neuron, perc_active = 0.5):
     patterns = torch.from_numpy(random.rand(n_pattern, n_neuron)).type(torch.float32)
@@ -96,7 +96,9 @@ def train_equalibium_prop(network:Hopfield_network, patterns:torch.tensor, lr=0.
     torch.set_grad_enabled(True)
     
     # Get the most acurate patterns that is stored in the network:
-    stored_patterns, success, retrieval_time = network.evolve_batch(patterns)
+    stored_patterns, _, _ = network.evolve_batch(patterns)
+    if lossfun(stored_patterns, patterns)>network.min_error*2:
+        success = False
 
     # plt.figure()
     # plt.plot(np.arange(0, n_loop, 100), training_loss)
@@ -142,7 +144,7 @@ def train_PLA(network:Hopfield_network, patterns:torch.tensor, lr=0.01, k1 = 0.5
         success = True
     
     # Get the most acurate patterns that is stored in the network:
-    stored_patterns, success, retrieval_time = network.evolve_batch(patterns)
+    stored_patterns, _, _ = network.evolve_batch(patterns)
 
     # start_time = time.time()
     # stored_patterns2, success, retrieval_time= retreive_batch_patterns(patterns, network)
@@ -170,6 +172,7 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
     #BPTT Training: 
     n_pattern = patterns.shape[0]
     n_neuron = patterns.shape[1]
+    min_error = network.min_error**1.4 # empirically
 
     optimizer = optim.Adam(network.parameters(), lr=lr)
     lossfun = nn.MSELoss()
@@ -190,7 +193,7 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
         retrieve_patterns = network(patterns, n_step, dt_train)
         loss = lossfun(patterns, retrieve_patterns)
 
-        if loss<network.min_error:
+        if loss<min_error:
             break
         loss.backward()
 
@@ -213,7 +216,9 @@ def train_back_prop(network:Hopfield_network, patterns, lr=0.01, n_step = 2, dt_
     network = network.to(torch.device("cpu"))
 
     # Get the most acurate patterns that is stored in the network:
-    stored_patterns, success, retrieval_time = network.evolve_batch(patterns)
+    stored_patterns, _, _ = network.evolve_batch(patterns)
+    if lossfun(stored_patterns, patterns)>network.min_error*2:
+        success = False
 
     # plt.figure()
     # plt.plot(np.arange(0, n_loop, 100), training_loss)

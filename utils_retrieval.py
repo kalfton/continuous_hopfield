@@ -19,9 +19,8 @@ def similarity_measurement(pattern1, pattern2):
     similarity = np.dot(pattern1*2-1, pattern2*2-1)/n_neuron
     return similarity
     
-def L1_norm(pattern1, pattern2):
+def L1_norm_dist(pattern1, pattern2):
     assert pattern1.shape[-1] == pattern2.shape[-1], "Two pattern's dimensions do not equal"
-    assert pattern1.shape[0] == pattern2.shape[0], "Two pattern's dimensions do not equal"
     assert pattern1.ndim<3 and pattern2.ndim<3, "Can't calculate patterns with dimension >=3"
     dist = np.linalg.norm(pattern1-pattern2, ord=1, axis=-1)
     return dist

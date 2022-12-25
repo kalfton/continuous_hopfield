@@ -40,10 +40,13 @@ learn how to make the parallel computation code in python.
 Back prop training method gives huge capacity than I expected... is this realistic? (Solved. In eq_prop and back_prop, the diagonal line is not restricted to be zero, thus make the pattern self sustanted.)
 
 make the training alg. return the most accurate pattern that is stored in the network. (Done)
+
+The back prop method seems to have some problem in converging?
+the forward function say it is converged, but the evolve function don't, why????
 make the evolve alg. return the number of timestep took to retrieve the memory.(for retrieval time comparison.) (Done)
 
 To do:
 refactorizing the training code such that they process them in a batch?
 deprecate network.evolve() function.
 
-the energy function should also accommodate batch process
+the energy function should also accommodate batch process(x)

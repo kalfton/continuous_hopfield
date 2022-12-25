@@ -10,7 +10,7 @@ import utils_pytorchV2 as utils
 random.seed(0)
 torch.manual_seed(0)
 n_neuron = 50
-n_pattern = 50
+n_pattern = 40
 
 start_time = time.time()
 
@@ -22,7 +22,7 @@ patterns = utils.make_pattern(n_pattern, n_neuron)
 network1 = Hopfield_network(n_neuron, dt=0.01)
 
 # network1, success, patterns = utils.train_equalibium_prop(network1, patterns, lr=0.01, max_loop_train=100, dt_train = 0.5, gamma=50)
-network1, success, patterns = utils.train_back_prop(network1, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
+network1, success, patterns_stored = utils.train_back_prop(network1, patterns, lr=0.01, n_step = 5, dt_train = 0.5)
 # network1, success, patterns = utils.train_PLA(network1, patterns, lr=0.01, k1 = 0.0, k2 = 2)
 
 #Evaluation: 

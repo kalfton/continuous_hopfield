@@ -7,11 +7,12 @@ import torch.nn as nn
 import pickle
 import time
 import utils_pytorchV2 as utils
+import warnings
 
 random.seed(1)
 torch.manual_seed(1)
 n_neuron = 50
-n_pattern = 50
+n_pattern = 40
 
 start_time = time.time()
 
@@ -35,8 +36,14 @@ network2 = Hopfield_network(n_neuron, dt=0.01)
 network3 = Hopfield_network(n_neuron, dt=0.01)
 
 network1, success, stored_patterns1 = utils.train_equalibium_prop(network1, patterns, lr=0.01, max_loop_train=100, dt_train = 0.5, gamma=50)
+if not success:
+    warnings.warn("Not successfully train the network")
 network2, success, stored_patterns2 = utils.train_back_prop(network2, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
+if not success:
+    warnings.warn("Not successfully train the network")
 network3, success, stored_patterns3 = utils.train_PLA(network3, patterns, lr=0.01, k1 = 0.0, k2 = 2)
+if not success:
+    warnings.warn("Not successfully train the network")
 
 
 
