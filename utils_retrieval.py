@@ -147,6 +147,12 @@ def make_scatter_plot(ax, xdata:dict, ydata:dict, color_data:dict = None, color_
     (rho, p) = stats.spearmanr(xdata[xlabel], ydata[ylabel])
     plt.title(f"rho_all = {rho:.3f}, p = {p:.3f}")
 
+def func_for_optim(t_set, init_patterns):
+    
+    # function 
+    
+    
+
 def compare_rho_permutation_test(X1:np.ndarray, Y1:np.ndarray, X2:np.ndarray, Y2:np.ndarray, nperm = 5000):
     # input are two pairs of data, and we compare their correlation 
     # fix the # permutations
