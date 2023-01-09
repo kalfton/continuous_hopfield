@@ -1,5 +1,6 @@
 import numpy as np
 from numpy import random
+from scipy import optimize
 from scipy import stats
 from matplotlib import pyplot as plt
 from hopfield_class_torch import Hopfield_network
@@ -43,7 +44,12 @@ n_pattern = patterns.shape[0]
 n_neuron = patterns.shape[1]
 
 
-init_patterns, target_pattern_ind = utils_retr.create_init_pattern(patterns, n_init_pattern, perc_active, reinit_ratio, pattern_init=pattern_init, neuron_ids=[])
+init_patterns_all, target_pattern_ind_all = utils_retr.create_init_pattern(patterns, 2*n_init_pattern, perc_active, reinit_ratio, pattern_init=pattern_init, neuron_ids=[])
+init_patterns = init_patterns_all[:n_init_pattern, :]
+target_pattern_ind = target_pattern_ind_all[:n_init_pattern]
+
+init_patterns_2 = init_patterns_all[n_init_pattern:, :]
+target_pattern_ind_2 = target_pattern_ind_all[n_init_pattern:]
 
 # properties of the network:
 bias = network1.b().numpy()
@@ -60,9 +66,19 @@ for i in range(n_neuron):
 
 pattern_deg = np.sum(patterns>0.5, axis=0)
 
+# find the optimal \tau
+tau_0 = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min())
+minimum = optimize.fmin(utils_retr.func_for_optim, tau_0, (network1, patterns, init_patterns, target_pattern_ind),maxfun=1000)
+# tau_low_bound = np.ones(n_neuron),
+# tau_high_bound = 10*np.ones(n_neuron)
+# minimum = optimize.fminbound(utils_retr.func_for_optim, np.zeros(), (network1, patterns, init_patterns, target_pattern_ind),maxfun=5000)
+
+tau_opt = minimum[0]
+
+
 # set the network with different {\tau_i}, and compare the difference.
 # Randomly generate {\tau_i} sets:
-max_allow = 0.01
+max_allow = utils_retr.retr_max_allow
 n_t_set = 30
 t_sets = 0.2+random.rand(n_t_set, n_neuron)*0.8 # prevent tau too small or too big.
 #make the last 4 tau set special:
@@ -70,6 +86,7 @@ t_sets[-4,:] = 0.2+ 0.8*(bias.max()-bias)/(bias.max()-bias.min())
 t_sets[-3,:] = 0.2+ 0.8*(mean_weight_pos.max()-mean_weight_pos)/(mean_weight_pos.max()-mean_weight_pos.min())
 t_sets[-2,:] = 0.2+ 0.8*(mean_weight_neg-mean_weight_neg.min())/(mean_weight_neg.max()-mean_weight_neg.min())
 t_sets[-1,:] = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min())
+t_sets[-5,:] = tau_opt
 #t_sets[-1,:] = 0.2+ 0.8*(pattern_deg.max()-pattern_deg)/(pattern_deg.max()-pattern_deg.min())
 
 

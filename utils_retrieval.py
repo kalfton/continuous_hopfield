@@ -11,6 +11,8 @@ from matplotlib import cm
 import pandas as pd
 from utils_pytorchV2 import *
 
+retr_max_allow=0.01
+
 def similarity_measurement(pattern1, pattern2):
     assert pattern1.shape[-1] == pattern2.shape[-1], "Two pattern's dimensions do not equal"
     assert pattern1.ndim<3 and pattern2.ndim<3, "Can't calculate patterns with dimension >=3"
@@ -34,14 +36,14 @@ def create_init_pattern(target_patterns, n_init_pattern, perc_active, reinit_rat
     # target_patterns: n_pattern * n_neuron np array: All the target patterns to be/has stored in a network.
     # n_init_pattern: number of initial patterns to be generated
     
-
     n_neuron = target_patterns.shape[1]
     n_pattern = target_patterns.shape[0]
 
+    target_pattern_ind = np.zeros(n_init_pattern)
+    target_pattern_ind = target_pattern_ind.astype(int)
+    init_patterns = np.zeros([n_init_pattern, n_neuron])*np.nan
+
     if pattern_init==3: # init the pattern around the stored patterns and pick the one that is closer to the target pattern than other stored patterns.
-        target_pattern_ind = np.zeros(n_init_pattern)
-        target_pattern_ind = target_pattern_ind.astype(int)
-        init_patterns = np.zeros([n_init_pattern, n_neuron])
         n=0
         while n<n_init_pattern:
             tag_ind = random.randint(n_pattern)
@@ -61,9 +63,10 @@ def create_init_pattern(target_patterns, n_init_pattern, perc_active, reinit_rat
 
             # check whether the init pattern is closer to the target pattern than the other stored patterns.
             if np.abs(similarity_measurement(new_pattern, target_patterns).max() - similarity_measurement(new_pattern, targ_pattern))<1e-6:
-                init_patterns[n,:] = new_pattern
-                target_pattern_ind[n] = tag_ind
-                n+=1
+                if not np.nanmax(L1_norm_dist(new_pattern, init_patterns))<retr_max_allow: # prevent sampling the same state twice
+                    init_patterns[n,:] = new_pattern
+                    target_pattern_ind[n] = tag_ind
+                    n+=1
 
         # # sanity check: the init pattern are close to the target pattern
         # max_similarity = np.matmul(init_patterns*2-1, (target_patterns*2-1).transpose()).max(axis=1)
@@ -71,9 +74,6 @@ def create_init_pattern(target_patterns, n_init_pattern, perc_active, reinit_rat
         # assert np.all(np.abs(max_similarity - target_similarity)<1e-6)
 
     elif pattern_init==4: # Ring initialization
-        target_pattern_ind = np.zeros(n_init_pattern)
-        target_pattern_ind = target_pattern_ind.astype(int)
-        init_patterns = np.zeros([n_init_pattern, n_neuron])
 
         reinit_local = reinit_ratio/(2*perc_active*(1-perc_active)) 
         reinit_local = np.min([reinit_local,1])
@@ -99,9 +99,10 @@ def create_init_pattern(target_patterns, n_init_pattern, perc_active, reinit_rat
             # check whether the init pattern is closer to the target pattern than the other stored patterns.
             if np.abs(similarity_measurement(new_pattern, target_patterns).max() - similarity_measurement(new_pattern, targ_pattern))<1e-6\
                 and similarity_measurement(new_pattern, targ_pattern)>ring_similarity-0.03 and similarity_measurement(new_pattern, targ_pattern)<ring_similarity+0.03:
-                init_patterns[n,:] = new_pattern
-                target_pattern_ind[n] = tag_ind
-                n+=1
+                if not np.nanmax(L1_norm_dist(new_pattern, init_patterns))<retr_max_allow: # prevent sampling the same state twice
+                    init_patterns[n,:] = new_pattern
+                    target_pattern_ind[n] = tag_ind
+                    n+=1
 
         # # sanity check: the init pattern are close to the target pattern
         # max_similarity = np.matmul(init_patterns*2-1, (target_patterns*2-1).transpose()).max(axis=1)
@@ -147,9 +148,21 @@ def make_scatter_plot(ax, xdata:dict, ydata:dict, color_data:dict = None, color_
     (rho, p) = stats.spearmanr(xdata[xlabel], ydata[ylabel])
     plt.title(f"rho_all = {rho:.3f}, p = {p:.3f}")
 
-def func_for_optim(t_set, init_patterns):
-    
-    # function 
+def func_for_optim(t_set, network, patterns, init_patterns, target_pattern_ind):
+    normalizer = 1/(np.mean(1/t_set))
+    t_set = t_set/normalizer
+    network.set_tau(t_set)
+    retrieved_patterns, success, retrieval_time = network.evolve_batch(torch.from_numpy(init_patterns).float())
+    retrieved_patterns = retrieved_patterns.detach().numpy()
+    success = success.detach().numpy()
+    retrieval_time = retrieval_time.detach().numpy()
+    n_init_pattern = init_patterns.shape[0]
+
+    success_converge = L1_norm_dist(patterns[target_pattern_ind,:],retrieved_patterns) < retr_max_allow
+
+    per_success_retrieval = np.sum(success_converge)/n_init_pattern
+    average_retrieval_time = np.mean(retrieval_time)
+    return average_retrieval_time
     
     
 
