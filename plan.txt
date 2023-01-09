@@ -41,12 +41,32 @@ Back prop training method gives huge capacity than I expected... is this realist
 
 make the training alg. return the most accurate pattern that is stored in the network. (Done)
 
-The back prop method seems to have some problem in converging?
-the forward function say it is converged, but the evolve function don't, why????
+The back prop method seems to have some problem in converging? (done)
+the forward function say it is converged, but the evolve function don't, why????(the min error set in backprop training is too high)
 make the evolve alg. return the number of timestep took to retrieve the memory.(for retrieval time comparison.) (Done)
 
 To do:
-refactorizing the training code such that they process them in a batch?
-deprecate network.evolve() function.
+refactorizing the training code such that they process them in a batch?(done0
+deprecate network.evolve() function.(done)
 
 the energy function should also accommodate batch process(x)
+
+By changing the init state slightly, the end state changes dramatically?
+The PLA network  have much shorter retrieval time than the eq_prop network on the same init patterns, why?(Done, because W and b have different scale in the two networks.)
+
+To do: change the init state slightly (from 1e-5 to 1e-4, see if it changes the results)
+So there are states that is in the middle of 0 and 1 after retrieval.
+
+Plan use ring init, and check if there is a init state retrieve too quickly(in that case, it is probably at a very flat place and didn't move at all.)
+
+It looks like the tau set that have higher accuracy for memory retrieval also have faster speed to retrieve all memory?(Maybe?)
+
+How to optimize {/tau} stochastically? (Kiefer–Wolfowitz algorithm for multidimension?)
+
+
+In the proof of why assign small {\tau} to "hub" neuron is a good way: How to make ration with the maximal gradient descent strategy? (Done, local maximal gradient descend is not equal to global maximal gradient descend)
+
+To do:
+1. Try 50 neuron 30 patterns setting?
+2. Try fminsearch in deterministic case.
+

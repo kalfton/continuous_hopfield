@@ -9,10 +9,10 @@ import time
 import utils_pytorchV2 as utils
 import warnings
 
-random.seed(1)
-torch.manual_seed(1)
+random.seed(10)
+torch.manual_seed(10)
 n_neuron = 50
-n_pattern = 40
+n_pattern = 30
 
 start_time = time.time()
 

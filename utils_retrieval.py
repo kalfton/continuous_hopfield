@@ -7,6 +7,8 @@ from matplotlib import pyplot as plt
 from cmath import inf
 from scipy import stats
 import math
+from matplotlib import cm
+import pandas as pd
 from utils_pytorchV2 import *
 
 def similarity_measurement(pattern1, pattern2):
@@ -95,7 +97,7 @@ def create_init_pattern(target_patterns, n_init_pattern, perc_active, reinit_rat
             new_pattern[neuron_ids] = act_state
 
             # check whether the init pattern is closer to the target pattern than the other stored patterns.
-            if similarity_measurement(new_pattern, target_patterns).max() == similarity_measurement(new_pattern, targ_pattern)\
+            if np.abs(similarity_measurement(new_pattern, target_patterns).max() - similarity_measurement(new_pattern, targ_pattern))<1e-6\
                 and similarity_measurement(new_pattern, targ_pattern)>ring_similarity-0.03 and similarity_measurement(new_pattern, targ_pattern)<ring_similarity+0.03:
                 init_patterns[n,:] = new_pattern
                 target_pattern_ind[n] = tag_ind
@@ -109,7 +111,41 @@ def create_init_pattern(target_patterns, n_init_pattern, perc_active, reinit_rat
     else:
         raise Exception("Invalid pattern_init value")
 
+    #Kaining temporarily make it:
+    init_patterns[init_patterns>0.5] = 1-1e-5
+    init_patterns[init_patterns<=0.5] = 1e-5
+
     return init_patterns, target_pattern_ind
+
+def make_scatter_plot(ax, xdata:dict, ydata:dict, color_data:dict = None, color_bin_n=1):
+    # x_data, y_data, color_data: Dict structs which contain the name of the data and the data itself
+
+    n_bin = color_bin_n
+    cmap = cm.get_cmap('cool',n_bin)
+    plt.sca(ax)
+    xlabel = list(xdata.keys())[0]
+    ylabel = list(ydata.keys())[0]
+    if color_data is None:
+        plt.scatter(xdata[xlabel], ydata[ylabel], s=12)
+    else:
+        color_label = list(color_data.keys())[0]
+        max_c_value = np.nanmax(color_data[color_label])
+        min_c_value = np.nanmin(color_data[color_label])
+        if max_c_value>min_c_value:
+            bin_labels = np.arange(min_c_value, max_c_value-1e-10, (max_c_value-min_c_value)/n_bin)+(max_c_value-min_c_value)/n_bin/2
+        else:
+            bin_labels = np.ones(n_bin)
+        category_result = np.array(pd.cut(color_data[color_label], n_bin, labels = bin_labels, ordered=False)) 
+
+        plt.scatter(xdata[xlabel], ydata[ylabel], s=12, c=category_result, cmap=cmap, vmax = max_c_value, vmin = min_c_value)
+        cbar = plt.colorbar()
+        cbar.ax.set_ylabel(color_label, rotation=270)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+
+    # Some statistics:
+    (rho, p) = stats.spearmanr(xdata[xlabel], ydata[ylabel])
+    plt.title(f"rho_all = {rho:.3f}, p = {p:.3f}")
 
 def compare_rho_permutation_test(X1:np.ndarray, Y1:np.ndarray, X2:np.ndarray, Y2:np.ndarray, nperm = 5000):
     # input are two pairs of data, and we compare their correlation 
