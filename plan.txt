@@ -46,7 +46,7 @@ the forward function say it is converged, but the evolve function don't, why????
 make the evolve alg. return the number of timestep took to retrieve the memory.(for retrieval time comparison.) (Done)
 
 To do:
-refactorizing the training code such that they process them in a batch?(done0
+refactorizing the training code such that they process them in a batch?(done)
 deprecate network.evolve() function.(done)
 
 the energy function should also accommodate batch process(x)
