@@ -70,3 +70,16 @@ To do:
 1. Try 50 neuron 30 patterns setting?
 2. Try fminsearch in deterministic case.
 
+'Nelder-Mead' optimization method find some local minimum very near the initial x0, which is not useful.
+I tried a couple of other local optimization methods (L-BFGS-B, Newton-CG): It seems that all of them give me the result very near the start point x0, regardless of xtol/ftol I set.
+
+"dual-annealing" which is a global optimization method seems to work: maxfun=50000, runtime~ 58h: but the still the alg. didn't converge...(n_iter=35<<1000)
+"basinhopping"(no bounds option)
+"shigo": Take too long to run...
+"differential_evolution": Take too long to run...
+"direct": Not implemented in scipy 1.7.x
+
+Change the differential eq solver from Euler to others, see if it will be faster? use scipy.integrate.solve_ivp() with the event? (But this requires that each initial should be solved separately?
+
+Explore solve_ivp(): see if it can solve a batch of initial state together?(No)
+Solve it iteratively with terminal option: it can successfully solve the equations, but it does not seem to be able to find the event????

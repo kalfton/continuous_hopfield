@@ -4,6 +4,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from matplotlib import pyplot as plt
+import scipy
 
 class Symmetric_Linear(nn.Module):
     def __init__(self, n_neuron):
@@ -27,6 +28,7 @@ class Symmetric_Linear(nn.Module):
 class Hopfield_network(nn.Module):
     max_loop = 200000
     min_error = 1e-7
+    min_error_g = 1e-9
 
     def __init__(self, n_neuron, dt=0.1):
         super().__init__()
@@ -66,6 +68,10 @@ class Hopfield_network(nn.Module):
 
     def g_inverse(self, g, beta): # inverse of g
         return (1/beta) * torch.log(g/(1-g))
+
+    def g_derivative(self, x, beta):
+        g = self.g(x, beta)
+        return beta*g*(1-g)
 
     def Lagrangian(self, x, beta):
         return torch.sum((1/beta)*torch.log(1+torch.exp(beta*x)))
@@ -167,10 +173,56 @@ class Hopfield_network(nn.Module):
             n_step = torch.sum(converge_matrix>self.min_error, dim=1)+1 # min(max(n_step),self.max_loop))==n_loop
             converge = n_step<self.max_loop
         return state_g.detach(), converge, n_step*self.dt
+    
+    #Testing new alg. here
+    def recurrence_normalized(self, state_x, state_g, dt, use_tau = False):
+        dynamics = self.g_derivative(state_x, self.beta)*(self.h2h(state_g)-state_x)
+        if use_tau:
+            vec_norm = torch.linalg.norm(dynamics, 2, dim = -1, keepdim=True)
+            dynamics_weighted = (1/self.tau) * dynamics
+            unconstrain_norm = torch.linalg.norm(dynamics_weighted, 2, dim = -1, keepdim=True)
+            dynamics = dynamics_weighted/unconstrain_norm*vec_norm
+        
+        B = torch.linalg.norm(dynamics, 2, dim = -1, keepdim=True)
+        dynamics = dynamics/B
+        state_x = state_x + dt*dynamics
+        state_x = torch.clip(state_x, -self.max_x, self.max_x)
+        state_g = self.g(state_x, self.beta)
+        return state_x, state_g
 
-    def evolv_fast(self, state_g:torch.Tensor, target=None, gamma=None):
-        # Don't need to calculate the n_step.
-        pass
+    def evolve_batch_normalized(self, state_g:torch.Tensor, use_tau = False):
+        #state_g is a tensor with size n_patterns *  n_neurons
+        assert state_g.dim()==2, "state_g must be a two dim tensor"
+
+        n_pattern = state_g.shape[0]
+        state_x = self.g_inverse(state_g,self.beta)
+        with torch.no_grad():
+            n_loop=0
+            converge_matrix = torch.zeros(n_pattern, self.max_loop)
+            while n_loop<self.max_loop:
+                old_state_g = state_g
+
+                state_x, state_g = self.recurrence_normalized(state_x, state_g, self.dt, use_tau)
+                # state_x, state_g = self.recurrence(state_x, state_g, self.dt)
+
+                converge_matrix[:,n_loop] = torch.max(torch.abs(state_g-old_state_g), dim = 1)[0]
+
+                n_loop = n_loop+1
+                if torch.max(torch.abs(state_g-old_state_g))<self.min_error_g:
+                    break
+
+            n_step = torch.sum(converge_matrix>self.min_error_g, dim=1)+1 # min(max(n_step),self.max_loop))==n_loop
+            converge = n_step<self.max_loop
+        return state_g.detach(), converge, n_step*self.dt
+
+    # This is for scipy.integrate.solve_ivp
+    def dynamics(self, t, state_x):
+        state_g = self.g(state_x, self.beta)
+        dynamics = self.g_derivative(state_x, self.beta)*(self.h2h(state_g)-state_x)
+        return dynamics
+
+
+    
 
 
 

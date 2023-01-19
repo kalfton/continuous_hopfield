@@ -18,15 +18,15 @@ start_time = time.time()
 
 # compare the weight
 
-# with open('trained_network_torch_eq_prop.pickle', 'rb') as f:
+# with open('data/trained_network_torch_eq_prop.pickle', 'rb') as f:
 #     data_saved = pickle.load(f)
 # (network1, patterns) = data_saved
 
-# with open('trained_network_torch_back_prop.pickle', 'rb') as f:
+# with open('data/trained_network_torch_back_prop.pickle', 'rb') as f:
 #     data_saved = pickle.load(f)
 # (network2, patterns) = data_saved
 
-# with open('trained_network_torch_PLA.pickle', 'rb') as f:
+# with open('data/trained_network_torch_PLA.pickle', 'rb') as f:
 #     data_saved = pickle.load(f)
 # (network3, patterns) = data_saved
 
@@ -100,15 +100,15 @@ with torch.no_grad():
 
 # save the trained weight bias and stored patterns
 data = [network1, stored_patterns1]
-with open('trained_network_torch_eq_prop.pickle', 'wb') as f:
+with open('data/trained_network_torch_eq_prop.pickle', 'wb') as f:
     pickle.dump(data, f)
 
 data = [network2, stored_patterns2]
-with open('trained_network_torch_back_prop.pickle', 'wb') as f:
+with open('data/trained_network_torch_back_prop.pickle', 'wb') as f:
     pickle.dump(data, f)
 
 data = [network3, stored_patterns3]
-with open('trained_network_torch_PLA.pickle', 'wb') as f:
+with open('data/trained_network_torch_PLA.pickle', 'wb') as f:
     pickle.dump(data, f)
 
 print("--- %s seconds ---" % (time.time() - start_time))

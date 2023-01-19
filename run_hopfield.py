@@ -14,7 +14,7 @@ n_pattern = 40
 
 start_time = time.time()
 
-# with open('trained_network_torch_back_prop.pickle', 'rb') as f:
+# with open('data/trained_network_torch_back_prop.pickle', 'rb') as f:
 #     data_saved = pickle.load(f)
 # (network1, patterns) = data_saved
 
@@ -38,7 +38,7 @@ plt.show(block=False)
 
 # save the trained weight bias and stored patterns
 # data = [network1, patterns]
-# with open('trained_network_torch.pickle', 'wb') as f:
+# with open('data/trained_network_torch.pickle', 'wb') as f:
 #     pickle.dump(data, f)
 
 print("--- %s seconds ---" % (time.time() - start_time))

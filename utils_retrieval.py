@@ -6,10 +6,12 @@ from torch import optim
 from matplotlib import pyplot as plt
 from cmath import inf
 from scipy import stats
+import scipy
 import math
 from matplotlib import cm
 import pandas as pd
 from utils_pytorchV2 import *
+import warnings
 
 retr_max_allow=0.01
 
@@ -148,6 +150,30 @@ def make_scatter_plot(ax, xdata:dict, ydata:dict, color_data:dict = None, color_
     (rho, p) = stats.spearmanr(xdata[xlabel], ydata[ylabel])
     plt.title(f"rho_all = {rho:.3f}, p = {p:.3f}")
 
+def retrieval_results(network:Hopfield_network, init_patterns_torch: torch.Tensor, target_pattern_ind, patterns, normalized_grad = False):
+    if normalized_grad:
+        retrieved_patterns, success, retrieval_time = network.evolve_batch_normalized(init_patterns_torch, use_tau=True)
+    else:
+        retrieved_patterns, success, retrieval_time = network.evolve_batch(init_patterns_torch)
+
+    retrieved_patterns = retrieved_patterns.detach().numpy()
+    success = success.detach().numpy()
+    retrieval_time = retrieval_time.detach().numpy()
+    n_init_pattern = init_patterns_torch.size()[0]
+
+    converge_category = np.zeros(n_init_pattern)
+    for i in range(converge_category.size):
+        if (L1_norm_dist(patterns,retrieved_patterns[i]).min() > retr_max_allow):
+            converge_category[i] = 1 # retrieved spurious patterns
+        elif L1_norm_dist(patterns[target_pattern_ind[i]],retrieved_patterns[i]) < retr_max_allow:
+            converge_category[i] = 0 # retrieved target pattern
+        else:
+            converge_category[i] = 2 # retrieved another stored pattern
+
+    if np.any(~success):
+        warnings.warn("Warning: Some initial patterns have not converge")
+    return retrieval_time, converge_category, retrieved_patterns
+
 def func_for_optim(t_set, network, patterns, init_patterns, target_pattern_ind):
     normalizer = 1/(np.mean(1/t_set))
     t_set = t_set/normalizer
@@ -162,7 +188,64 @@ def func_for_optim(t_set, network, patterns, init_patterns, target_pattern_ind):
 
     per_success_retrieval = np.sum(success_converge)/n_init_pattern
     average_retrieval_time = np.mean(retrieval_time)
-    return average_retrieval_time
+    average_retrieval_time_success = np.mean(retrieval_time[success_converge==0])
+    return average_retrieval_time_success
+
+
+# scipy.integrate.solve_ivp TODO: convert np array to tensor
+# This is for scipy.integrate.solve_ivp
+def dynamics(t, state_x:np.ndarray, network):
+    if type(state_x)==np.ndarray:
+        state_x = torch.from_numpy(state_x).to(torch.float32)
+    state_g = network.g(state_x, network.beta)
+    #dynamics = network.g_derivative(state_x, network.beta)*(network.h2h(state_g)-state_x)
+    dynamics = (network.h2h(state_g)-state_x)
+    return dynamics.detach().numpy()
+    
+def stop_event(t, state_x:np.ndarray, network):
+    state_x_torch = torch.from_numpy(state_x).to(torch.float32)
+    state_g = network.g_inverse(state_x_torch, network.beta)
+    new_state_x, new_state_g = network.recurrence(state_x_torch, state_g, dt=0.01)
+    #return torch.max(torch.abs(new_state_x-state_x_torch))-network.min_error
+    return 1000-t
+
+def event(t, y,z):
+    return y[0] - 2
+event.terminal = True
+
+
+# stop_event.terminal=True
+    
+
+def evolve_odesolver(state_g_torch:torch.Tensor, network:Hopfield_network):
+    t_span = np.array([0,20000], dtype='float32')
+    n_init_pattern = state_g_torch.shape[0]
+    n_neuron = state_g_torch.shape[1]
+
+    retrieved_pattern = np.zeros([n_init_pattern, n_neuron])
+    converge = np.zeros(n_init_pattern).astype('bool')
+    retrieval_time = np.zeros(n_init_pattern)
+    
+    for i in range(n_init_pattern):
+        state_x_0 = network.g_inverse(state_g_torch[i], network.beta).numpy()
+        solution = scipy.integrate.solve_ivp(dynamics ,t_span, state_x_0, method = 'RK45', event= (stop_event,event), args=(network,))
+        if solution.y_events is None:
+            retrieved_pattern[i,:] = solution.y[:,-1]
+            converge[i] = False
+            retrieval_time[i] = solution.t[-1]
+        else:
+            retrieved_pattern[i,:] = solution.y_events[0]
+            converge[i] = True
+            retrieval_time[i] = solution.t_events[0]
+
+        # for debug & visualization:
+        plt.figure(); plt.plot(solution.t, solution.y.T); plt.show()
+        print(f"iter {i}")
+
+    retrieved_pattern = network.g(retrieved_pattern, network.beta).numpy
+
+    return retrieved_pattern, converge, retrieval_time
+    
     
     
 
