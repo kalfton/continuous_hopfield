@@ -14,8 +14,7 @@ import warnings
 
 random.seed(13)
 torch.manual_seed(15)
-# n_neuron = 50
-# n_pattern = 40
+
 perc_active=0.5
 
 n_init_pattern=1000
@@ -24,27 +23,23 @@ pattern_init = 4
 
 start_time = time.time()
 
-with open('data/trained_network_torch_eq_prop_n_50_p_40.pickle', 'rb') as f:
+# with open('data/trained_network_torch_eq_prop_n_50_p_40.pickle', 'rb') as f:
+#     data_saved = pickle.load(f)
+# (network1, patterns) = data_saved
+
+with open('data/optimized_tau_and_init_states_V1.pickle', 'rb') as f:
     data_saved = pickle.load(f)
-(network1, patterns) = data_saved
+tau_opt_1, init_patterns_all, target_pattern_ind_all, network1, patterns = data_saved
 
 network1.max_loop=200000
 network1.dt=0.1
 
-# # Generate the storing patterns
-# patterns = utils_torch.make_pattern(n_pattern, n_neuron, perc_active = perc_active)
-# # Initiate the network
-# network1 = Hopfield_network(n_neuron, dt=0.01)
-# # Train the network:
-# # network1, success, patterns = utils_torch.train_back(network1, patterns, lr=0.01, k1 = 0.0, k2 = 2)
-# network1, success, patterns = utils_torch.train_back_prop(network1, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
 
-patterns = patterns.detach().numpy()
 n_pattern = patterns.shape[0]
 n_neuron = patterns.shape[1]
 
 
-init_patterns_all, target_pattern_ind_all = utils_retr.create_init_pattern(patterns, 2*n_init_pattern, perc_active, reinit_ratio, pattern_init=pattern_init, neuron_ids=[])
+#init_patterns_all, target_pattern_ind_all = utils_retr.create_init_pattern(patterns, 2*n_init_pattern, perc_active, reinit_ratio, pattern_init=pattern_init, neuron_ids=[])
 init_patterns = init_patterns_all[:n_init_pattern, :]
 target_pattern_ind = target_pattern_ind_all[:n_init_pattern]
 
@@ -66,29 +61,7 @@ for i in range(n_neuron):
 
 pattern_deg = np.sum(patterns>0.5, axis=0)
 
-# # find the optimal \tau
-#tau_0 = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min()) #0.2+random.rand(n_neuron)*0.8
-# tau_bounds = np.tile(np.array([[0.2, 1]]), (n_neuron,1)) #optimize.Bounds(0.2*np.ones(n_neuron),1*np.ones(n_neuron))
-
-# optimized_result_anneal = optimize.dual_annealing(utils_retr.func_for_optim, tau_bounds, args=(network1, patterns, init_patterns_2, target_pattern_ind_2), \
-#      maxfun=10000, x0=tau_0)
-# tau_opt_1 = optimized_result_anneal.x
-
-tau_opt_1 = 0.6*np.ones(n_neuron)
-
-# # save the init states and optimized \tau
-# data = [tau_opt_1, init_patterns, target_pattern_ind, network1, patterns] # save network and original pattern too?
-# with open('data/optimized_tau_and_init_states_1.pickle', 'wb') as f:
-#     pickle.dump(data, f)
-
-
-# tau_bounds = optimize.Bounds(0.2,1)
-
-# options_NM = {'maxfev': 5000, 'xatol': 0.0001, 'fatol':0.0001}
-# optimized_resultNM = optimize.minimize(utils_retr.func_for_optim, tau_0, (network1, patterns, init_patterns_2, target_pattern_ind_2), \
-#     bounds = tau_bounds, method ='Nelder-Mead', options=options_NM)
-# tau_opt_1 = optimized_resultNM.x
-# tau_opt_1 = tau_0
+tau_constant= 0.6*np.ones(n_neuron)
 
 
 
@@ -96,16 +69,17 @@ tau_opt_1 = 0.6*np.ones(n_neuron)
 # set the network with different {\tau_i}, and compare the difference.
 # Randomly generate {\tau_i} sets:
 max_allow = utils_retr.retr_max_allow
-n_t_set = 25
+n_t_set = 10
 t_sets = 0.2+random.rand(n_t_set, n_neuron)*0.8 # prevent tau too small or too big.
 #make the last n tau set special:
-special_tau_name = ['abs weight pos'.rjust(20), 'bias pos'.rjust(20), 'abs weight neg'.rjust(20), 'bias neg'.rjust(20), 'max grad'.rjust(20)]
+special_tau_name = ['abs weight pos'.rjust(20), 'bias pos'.rjust(20), 'abs weight neg'.rjust(20), 'bias neg'.rjust(20), 'max grad'.rjust(20), 'opt_tau'.rjust(20)]
 special_tau_name.reverse()
 t_sets[-1,:] = 0.2+ 0.8*(mean_weight-mean_weight.min())/(mean_weight.max()-mean_weight.min())
 t_sets[-2,:] = 0.2+ 0.8*(bias-bias.min())/(bias.max()-bias.min())
 t_sets[-3,:] = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min())
 t_sets[-4,:] = 0.2+ 0.8*(bias.max()-bias)/(bias.max()-bias.min())
-t_sets[-5,:] = tau_opt_1
+t_sets[-5,:] = tau_constant
+t_sets[-6,:] = tau_opt_1
 
 
 
@@ -143,10 +117,6 @@ for ii in range(n_t_set):
     #retrieval_time, converge_category, retrieved_patterns = utils_retr.retrieval_results(network1, init_patterns_torch, target_pattern_ind, patterns, normalized_grad=True)
     retrieved_patterns, success, retrieval_time = utils_retr.evolve_odesolver(init_patterns_torch, network1)
 
-
-    retrieved_patterns = retrieved_patterns.detach().numpy()
-    success = success.detach().numpy()
-    retrieval_time = retrieval_time.detach().numpy()
     n_init_pattern = init_patterns_torch.size()[0]
 
     converge_category = np.zeros(n_init_pattern)
@@ -161,13 +131,13 @@ for ii in range(n_t_set):
     per_success_retrieval[ii] = np.sum(converge_category==0)/n_init_pattern
     per_spurious_retrieval[ii] = np.sum(converge_category==1)/n_init_pattern
     per_wrong_retrieval[ii] = np.sum(converge_category==2)/n_init_pattern
-    average_retrieval_time[ii] = np.mean(retrieval_time)
-    std_retrieval_time[ii] = np.std(retrieval_time)  #/np.sqrt(n_init_pattern)
-    min_retrieval_time[ii] = np.min(retrieval_time)
-    average_retrieval_time_success[ii] = np.mean(retrieval_time[converge_category==0])
-    std_retrieval_time_success[ii] = np.std(retrieval_time[converge_category==0])
-    average_retrieval_time_fail[ii] = np.mean(retrieval_time[converge_category!=0])
-    std_retrieval_time_fail[ii] = np.std(retrieval_time[converge_category!=0])
+    average_retrieval_time[ii] = np.nanmean(retrieval_time)
+    std_retrieval_time[ii] = np.nanstd(retrieval_time)  #/np.sqrt(n_init_pattern)
+    min_retrieval_time[ii] = np.nanmin(retrieval_time)
+    average_retrieval_time_success[ii] = np.nanmean(retrieval_time[converge_category==0])
+    std_retrieval_time_success[ii] = np.nanstd(retrieval_time[converge_category==0])
+    average_retrieval_time_fail[ii] = np.nanmean(retrieval_time[converge_category!=0])
+    std_retrieval_time_fail[ii] = np.nanstd(retrieval_time[converge_category!=0])
 
     rho_bias_tau[ii] = stats.spearmanr(bias,t_sets[ii,:])[0]
     rho_pos_weight_tau[ii]= stats.spearmanr(mean_weight_pos,t_sets[ii,:])[0]
@@ -202,7 +172,7 @@ utils_retr.make_scatter_plot(axes[2,2], {"ratio of successfully retrieval": per_
 
 
 utils_retr.make_scatter_plot(axes[2,0], {"bias": bias}, \
-    {"absolute weight": mean_weight}, {"tau": t_sets[-5,:]}, color_bin_n=7)
+    {"absolute weight": mean_weight}, {"tau": t_sets[-6,:]}, color_bin_n=7)
 
 
 utils_retr.make_scatter_plot(axes[2,1], {"positive weight": mean_weight_pos}, \
@@ -214,7 +184,7 @@ utils_retr.make_scatter_plot(axes[2,1], {"positive weight": mean_weight_pos}, \
 
 # check if all retreive states' neuron are near 0 and 1?
 # axes[1,0].hist(retrieved_patterns.flatten())
-plt.savefig("retrieval plot of n tau set.jpg")
+plt.savefig("retrieval plot of n tau set ode solver.jpg")
 
 plt.show(block=False)
 

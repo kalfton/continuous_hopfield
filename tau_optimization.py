@@ -11,6 +11,7 @@ import time
 import utils_pytorchV2 as utils_torch
 import utils_retrieval as utils_retr
 import warnings
+from cmaes import CMA, CMAwM
 
 random.seed(13)
 torch.manual_seed(15)
@@ -67,7 +68,7 @@ for i in range(n_neuron):
 pattern_deg = np.sum(patterns>0.5, axis=0)
 
 # find the optimal \tau
-tau_0 = 0.2+random.rand(n_neuron)*0.8 # 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min()) 
+tau_0 = 0.6+0*random.rand(n_neuron) # 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min()) 
 # minimum = optimize.fmin(utils_retr.func_for_optim, tau_0, (network1, patterns, init_patterns, target_pattern_ind),maxfun=1000)
 # if type(minimum)==np.ndarray:
 #     tau_opt_1 = minimum
@@ -95,24 +96,35 @@ tau_bounds = [(0.2, 1)]*n_neuron #np.tile(np.array([[0.2, 1]]), (n_neuron,1)) #o
 tau_opt_1 = tau_0
 tau_opt_2 = tau_0
 
+# # simulated annealing method
+# start_time = time.time()
+# optimized_result_anneal = optimize.dual_annealing(utils_retr.func_for_optim, tau_bounds, args=(network1, patterns, init_patterns_2, target_pattern_ind_2), \
+#      maxfun=5000, x0=tau_0)
+# tau_opt_2 = optimized_result_anneal.x
+# print("---anneal: %s seconds ---" % (time.time() - start_time))
+
+# CMA-ES method:
 start_time = time.time()
-optimized_result_anneal = optimize.dual_annealing(utils_retr.func_for_optim, tau_bounds, args=(network1, patterns, init_patterns_2, target_pattern_ind_2), \
-     maxfun=5000, x0=tau_0)
-tau_opt_2 = optimized_result_anneal.x
-print("---anneal: %s seconds ---" % (time.time() - start_time))
+optimizer = CMA(mean=0.6*np.ones(n_neuron), sigma=0.5, bounds = np.array(tau_bounds))
+for generation in range(500):
+    solutions = []
+    for _ in range(optimizer.population_size):
+        x = optimizer.ask()
+        value = utils_retr.func_for_optim(x, network1, patterns, init_patterns_2, target_pattern_ind_2)
+        solutions.append((x, value))
+    optimizer.tell(solutions)
+    print(f"number of generation: {generation}")
+    # Kaining: stop till sigma become very small?
+
+tau_opt_2 = optimizer.ask()
+
+print("---CMA-ES: %s seconds ---" % (time.time() - start_time))
+
+data = [tau_opt_2, init_patterns_all, target_pattern_ind_all, network1, patterns] # save network and original pattern too?
+with open('data/optimized_tau_and_init_states_1.pickle', 'wb') as f:
+    pickle.dump(data, f)
 
 
-
-
-# options_NM = {'maxfev': 5000, 'xatol': 0.000001, 'fatol':0.000001}
-# optimized_resultNM = optimize.minimize(utils_retr.func_for_optim, tau_0, (network1, patterns, init_patterns_2, target_pattern_ind_2), \
-#     bounds = tau_bounds, method ='Nelder-Mead', options=options_NM)
-# tau_opt_1 = optimized_resultNM.x
-
-
-# with open('data/optimized_tau_and_init_states.pickle', 'rb') as f:
-#     data_saved = pickle.load(f)
-# (tau_opt_1, tau_opt_2, tau_opt_3, init_patterns, network1, patterns) = data_saved
 
 
 
@@ -123,13 +135,12 @@ max_allow = utils_retr.retr_max_allow
 n_t_set = 25
 t_sets = 0.2+random.rand(n_t_set, n_neuron)*0.8 # prevent tau too small or too big.
 #make the last n tau set special:
-special_tau_name = ['abs weight neg', 'bias neg', 'optimized 1', 'optimized 2', 'optimized 3']
+special_tau_name = ['abs weight neg', 'bias neg', 'constant', 'optimized 2']
 special_tau_name.reverse()
 t_sets[-1,:] = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min())
 t_sets[-2,:] = 0.2+ 0.8*(bias.max()-bias)/(bias.max()-bias.min())
 t_sets[-3,:] = tau_opt_1
 t_sets[-4,:] = tau_opt_2
-t_sets[-5,:] = tau_opt_3
 
 #normalize them:
 #normalizer = 1/np.sqrt(np.mean(1/t_sets**2, axis=1))
@@ -193,7 +204,8 @@ axes[0,2].set_ylabel("average time of retrieval (fail)")
 
 
 # set special bar ticks:
-axes[0,2].set_xticks(np.arange(len(special_tau_name))+n_t_set-len(special_tau_name), special_tau_name, rotation=45)
+axes[0,2].set_xticks(np.arange(len(special_tau_name))+n_t_set-len(special_tau_name))
+axes[0,2].set_xticklabels(special_tau_name, rotation=45, ha='right', rotation_mode='anchor')
 
 
 utils_retr.make_scatter_plot(axes[2,2], {"ratio of successfully retrieval": per_success_retrieval}, \
@@ -209,7 +221,7 @@ utils_retr.make_scatter_plot(axes[2,1], {"positive weight": mean_weight_pos}, \
 
 utils_retr.make_scatter_plot(axes[1,0], {"tau 0": tau_0}, {"tau_optimal_1": tau_opt_1})
 utils_retr.make_scatter_plot(axes[1,1], {"tau 0": tau_0}, {"tau_optimal_2": tau_opt_2})
-utils_retr.make_scatter_plot(axes[1,2], {"tau 0": tau_0}, {"tau_optimal_3": tau_opt_3})
+#utils_retr.make_scatter_plot(axes[1,2], {"tau 0": tau_0}, {"tau_optimal_3": tau_opt_3})
 
 plt.savefig("retrieval plot of optimized tau.jpg")
 

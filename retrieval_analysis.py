@@ -14,8 +14,6 @@ import warnings
 
 random.seed(13)
 torch.manual_seed(15)
-# n_neuron = 50
-# n_pattern = 40
 perc_active=0.5
 
 n_init_pattern=1000
@@ -24,9 +22,15 @@ pattern_init = 4
 
 start_time = time.time()
 
-with open('data/trained_network_torch_eq_prop_n_50_p_40.pickle', 'rb') as f:
+# with open('data/trained_network_torch_eq_prop_n_50_p_40.pickle', 'rb') as f:
+#     data_saved = pickle.load(f)
+# (network1, patterns) = data_saved
+# patterns = patterns.detach().numpy()
+
+# load stored data:
+with open('data/optimized_tau_and_init_states_V1.pickle', 'rb') as f:
     data_saved = pickle.load(f)
-(network1, patterns) = data_saved
+tau_opt_1, init_patterns_all, target_pattern_ind_all, network1, patterns = data_saved
 
 network1.max_loop=200000
 network1.dt=0.1
@@ -39,7 +43,7 @@ network1.dt=0.1
 # # network1, success, patterns = utils_torch.train_back(network1, patterns, lr=0.01, k1 = 0.0, k2 = 2)
 # network1, success, patterns = utils_torch.train_back_prop(network1, patterns, lr=0.01, n_step = 2, dt_train = 0.5)
 
-patterns = patterns.detach().numpy()
+
 n_pattern = patterns.shape[0]
 n_neuron = patterns.shape[1]
 
@@ -66,18 +70,21 @@ for i in range(n_neuron):
 
 pattern_deg = np.sum(patterns>0.5, axis=0)
 
-# find the optimal \tau
-tau_0 = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min()) #0.2+random.rand(n_neuron)*0.8
-tau_bounds = np.tile(np.array([[0.2, 1]]), (n_neuron,1)) #optimize.Bounds(0.2*np.ones(n_neuron),1*np.ones(n_neuron))
+###############################  Optimization of tau ############################################################
+# # find the optimal \tau
+# tau_0 = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min()) #0.2+random.rand(n_neuron)*0.8
+# tau_bounds = np.tile(np.array([[0.2, 1]]), (n_neuron,1)) #optimize.Bounds(0.2*np.ones(n_neuron),1*np.ones(n_neuron))
 
-optimized_result_anneal = optimize.dual_annealing(utils_retr.func_for_optim, tau_bounds, args=(network1, patterns, init_patterns_2, target_pattern_ind_2), \
-     maxfun=10000, x0=tau_0)
-tau_opt_1 = optimized_result_anneal.x
+# optimized_result_anneal = optimize.dual_annealing(utils_retr.func_for_optim, tau_bounds, args=(network1, patterns, init_patterns_2, target_pattern_ind_2), \
+#      maxfun=10000, x0=tau_0)
+# tau_opt_1 = optimized_result_anneal.x
 
-# save the init states and optimized \tau
-data = [tau_opt_1, init_patterns_all, target_pattern_ind_all, network1, patterns] # save network and original pattern too?
-with open('data/optimized_tau_and_init_states_1.pickle', 'wb') as f:
-    pickle.dump(data, f)
+# # save the init states and optimized \tau
+# data = [tau_opt_1, init_patterns_all, target_pattern_ind_all, network1, patterns] # save network and original pattern too?
+# with open('data/optimized_tau_and_init_states_1.pickle', 'wb') as f:
+#     pickle.dump(data, f)
+
+################################# End of optimization ############################################################
 
 
 # tau_bounds = optimize.Bounds(0.2,1)
@@ -95,16 +102,35 @@ with open('data/optimized_tau_and_init_states_1.pickle', 'wb') as f:
 # Randomly generate {\tau_i} sets:
 max_allow = utils_retr.retr_max_allow
 n_t_set = 25
-t_sets = 0.2+random.rand(n_t_set, n_neuron)*0.8 # prevent tau too small or too big.
-#make the last n tau set special:
-special_tau_name = ['abs weight pos'.rjust(20), 'bias pos'.rjust(20), 'abs weight neg'.rjust(20), 'bias neg'.rjust(20), 'optimized train'.rjust(20), 'optimized test'.rjust(20)]
+# new way of setting tau:
+taus = np.sort(0.2+ 0.8*random.rand(n_neuron))
+t_sets = np.zeros([n_t_set, n_neuron])
+for i in range(n_t_set):
+    t_sets[i,:] = random.permutation(taus)
+
+special_tau_name = ['abs weight pos'.rjust(20), 'bias pos'.rjust(20), 'abs weight neg'.rjust(20), 'bias neg'.rjust(20)]
 special_tau_name.reverse()
-t_sets[-1,:] = 0.2+ 0.8*(mean_weight-mean_weight.min())/(mean_weight.max()-mean_weight.min())
-t_sets[-2,:] = 0.2+ 0.8*(bias-bias.min())/(bias.max()-bias.min())
-t_sets[-3,:] = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min())
-t_sets[-4,:] = 0.2+ 0.8*(bias.max()-bias)/(bias.max()-bias.min())
-t_sets[-5,:] = tau_opt_1
-t_sets[-6,:] = tau_opt_1
+ind_weight = np.argsort(np.argsort(mean_weight))
+ind_bias = np.argsort(np.argsort(bias))
+
+t_sets[-1,:] = taus[ind_weight]
+t_sets[-2,:] = taus[ind_bias]
+t_sets[-3,:] = taus[np.flip(ind_weight)]
+t_sets[-4,:] = taus[np.flip(ind_bias)]
+
+# t_sets = 0.2+ 0.8*random.rand(n_t_set, n_neuron) # prevent tau too small or too big.
+# special_tau_name = []
+#make the last n tau set special:
+# special_tau_name = ['abs weight pos'.rjust(20), 'bias pos'.rjust(20), 'abs weight neg'.rjust(20), 'bias neg'.rjust(20), 'constant'.rjust(20), 'optimized train'.rjust(20), 'optimized test'.rjust(20)]
+# special_tau_name.reverse()
+# t_sets[-1,:] = 0.2+ 0.8*(mean_weight-mean_weight.min())/(mean_weight.max()-mean_weight.min())
+# t_sets[-2,:] = 0.2+ 0.8*(bias-bias.min())/(bias.max()-bias.min())
+# t_sets[-3,:] = 0.2+ 0.8*(mean_weight.max()-mean_weight)/(mean_weight.max()-mean_weight.min())
+# t_sets[-4,:] = 0.2+ 0.8*(bias.max()-bias)/(bias.max()-bias.min())
+# t_sets[-5,:] = 0.9*np.ones(n_neuron)
+# t_sets[-6,:] = 0.2+ 0.8*(tau_opt_1-tau_opt_1.min())/(tau_opt_1.max()-tau_opt_1.min())
+# t_sets[-7,:] = 0.2+ 0.8*(tau_opt_1-tau_opt_1.min())/(tau_opt_1.max()-tau_opt_1.min())
+
 # t_sets[-1,:] = 0.2+ 0.8*(pattern_deg.max()-pattern_deg)/(pattern_deg.max()-pattern_deg.min())
 # t_sets[-3,:] = 0.2+ 0.8*(mean_weight_pos.max()-mean_weight_pos)/(mean_weight_pos.max()-mean_weight_pos.min())
 # t_sets[-2,:] = 0.2+ 0.8*(mean_weight_neg-mean_weight_neg.min())/(mean_weight_neg.max()-mean_weight_neg.min())
@@ -136,7 +162,7 @@ for ii in range(n_t_set):
     print(f"tau set {ii} out of {n_t_set}")
 
     network1.set_tau(t_sets[ii,:])
-    if ii == n_t_set-5: # training result
+    if ii == n_t_set-6: # training result
         retrieval_time, converge_category, retrieved_patterns = utils_retr.retrieval_results(network1, init_patterns_torch_2, target_pattern_ind_2, patterns)
     else:
         retrieval_time, converge_category, retrieved_patterns = utils_retr.retrieval_results(network1, init_patterns_torch, target_pattern_ind, patterns)
@@ -174,7 +200,8 @@ axes[0,2].set_ylabel("average time of retrieval (fail)")
 
 
 # set special bar ticks:
-axes[0,2].set_xticks(np.arange(len(special_tau_name))+n_t_set-len(special_tau_name), special_tau_name, rotation=45)
+axes[0,2].set_xticks(np.arange(len(special_tau_name))+n_t_set-len(special_tau_name))
+axes[0,2].set_xticklabels(special_tau_name, rotation=45, ha='right', rotation_mode='anchor')
 
 # axes[1,1].scatter(per_success_retrieval, average_retrieval_time_success)
 # axes[1,1].set_ylabel("average time of retrieval (success)")
@@ -182,9 +209,11 @@ axes[0,2].set_xticks(np.arange(len(special_tau_name))+n_t_set-len(special_tau_na
 # rho, p = stats.spearmanr(per_success_retrieval, average_retrieval_time_success)
 # axes[1,1].set_title(f"rho = {rho:.5f}, p = {p:.5f}")
 
+# utils_retr.make_scatter_plot(axes[2,2], {"ratio of successfully retrieval": per_success_retrieval}, \
+#     {"average time of retrieval (success)": average_retrieval_time_success}, {"std tau": np.std(t_sets, axis=1)}, color_bin_n=7)
+
 utils_retr.make_scatter_plot(axes[2,2], {"ratio of successfully retrieval": per_success_retrieval}, \
     {"average time of retrieval (success)": average_retrieval_time_success})
-
 
 # utils_retr.make_scatter_plot(axes[2,0], {"rho of bias and tau": rho_bias_tau}, \
 #     {"average time of retrieval (success)": average_retrieval_time_success})
@@ -199,19 +228,19 @@ utils_retr.make_scatter_plot(axes[2,2], {"ratio of successfully retrieval": per_
 #     {"pattern_degree": pattern_deg})
 
 utils_retr.make_scatter_plot(axes[2,0], {"bias": bias}, \
-    {"absolute weight": mean_weight}, {"tau": t_sets[-5,:]}, color_bin_n=7)
+    {"absolute weight": mean_weight}, {"tau": t_sets[-6,:]}, color_bin_n=7)
 
 utils_retr.make_scatter_plot(axes[1,1], \
-    {"absolute weight": mean_weight}, {"tau": t_sets[-5,:]})
+    {"absolute weight": mean_weight}, {"tau": t_sets[-6,:]})
 
 utils_retr.make_scatter_plot(axes[1,2], \
-    {"bias": bias}, {"tau": t_sets[-5,:]})
+    {"bias": bias}, {"tau": t_sets[-6,:]})
 
 
-utils_retr.make_scatter_plot(axes[2,1], {"positive weight": mean_weight_pos}, \
-    {"negative weight": mean_weight_neg})
+# utils_retr.make_scatter_plot(axes[2,1], {"positive weight": mean_weight_pos}, \
+#     {"negative weight": mean_weight_neg})
 
-utils_retr.make_scatter_plot(axes[1,0], {"tau 0": tau_0}, {"tau_optimal_1": tau_opt_1})
+# utils_retr.make_scatter_plot(axes[1,0], {"tau 0": tau_0}, {"tau_optimal_1": tau_opt_1})
 # utils_retr.make_scatter_plot(axes[1,1], {"tau 0": tau_0}, {"tau_optimal_2": tau_opt_2})
 #utils_retr.make_scatter_plot(axes[1,2], {"tau 0": tau_0}, {"tau_optimal_3": tau_opt_3})
 

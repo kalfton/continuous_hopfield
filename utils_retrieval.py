@@ -150,11 +150,9 @@ def make_scatter_plot(ax, xdata:dict, ydata:dict, color_data:dict = None, color_
     (rho, p) = stats.spearmanr(xdata[xlabel], ydata[ylabel])
     plt.title(f"rho_all = {rho:.3f}, p = {p:.3f}")
 
-def retrieval_results(network:Hopfield_network, init_patterns_torch: torch.Tensor, target_pattern_ind, patterns, normalized_grad = False):
-    if normalized_grad:
-        retrieved_patterns, success, retrieval_time = network.evolve_batch_normalized(init_patterns_torch, use_tau=True)
-    else:
-        retrieved_patterns, success, retrieval_time = network.evolve_batch(init_patterns_torch)
+def retrieval_results(network:Hopfield_network, init_patterns_torch: torch.Tensor, target_pattern_ind, patterns):
+
+    retrieved_patterns, success, retrieval_time = network.evolve_batch(init_patterns_torch)
 
     retrieved_patterns = retrieved_patterns.detach().numpy()
     success = success.detach().numpy()
@@ -192,60 +190,66 @@ def func_for_optim(t_set, network, patterns, init_patterns, target_pattern_ind):
     return average_retrieval_time_success
 
 
-# scipy.integrate.solve_ivp TODO: convert np array to tensor
 # This is for scipy.integrate.solve_ivp
-def dynamics(t, state_x:np.ndarray, network):
-    if type(state_x)==np.ndarray:
-        state_x = torch.from_numpy(state_x).to(torch.float32)
-    state_g = network.g(state_x, network.beta)
-    #dynamics = network.g_derivative(state_x, network.beta)*(network.h2h(state_g)-state_x)
-    dynamics = (network.h2h(state_g)-state_x)
+def dynamics(t, state_x:np.ndarray, network:Hopfield_network):
+    state_x = torch.from_numpy(state_x).to(torch.float32)
+    with torch.no_grad():
+        state_g = network.g(state_x, network.beta)
+        dynamics = network.g_derivative(state_x, network.beta)*(network.h2h(state_g)-state_x)
+        # renormalize it with tau:
+        vec_norm = torch.linalg.norm(dynamics, 2, dim = -1, keepdim=True)
+        dynamics_weighted = (1/network.tau) * dynamics
+        unconstrain_norm = torch.linalg.norm(dynamics_weighted, 2, dim = -1, keepdim=True)
+        if t<1000: # this is to accelarate the convergency speed.
+            dynamics = dynamics_weighted/unconstrain_norm
+        else:
+            dynamics = dynamics_weighted/unconstrain_norm*vec_norm
+        #dynamics = (1/network.tau)*(network.h2h(state_g)-state_x)
     return dynamics.detach().numpy()
     
-def stop_event(t, state_x:np.ndarray, network):
-    state_x_torch = torch.from_numpy(state_x).to(torch.float32)
-    state_g = network.g_inverse(state_x_torch, network.beta)
-    new_state_x, new_state_g = network.recurrence(state_x_torch, state_g, dt=0.01)
-    #return torch.max(torch.abs(new_state_x-state_x_torch))-network.min_error
-    return 1000-t
-
-def event(t, y,z):
-    return y[0] - 2
-event.terminal = True
-
-
-# stop_event.terminal=True
-    
+def stop_event(t, state_x:np.ndarray, network:Hopfield_network):
+    with torch.no_grad():
+        state_x_torch = torch.from_numpy(state_x).to(torch.float32)
+        state_g = network.g(state_x_torch, network.beta)
+        new_state_x, new_state_g = network.recurrence(state_x_torch, state_g, network.dt)
+        change_max = torch.max(torch.abs(new_state_g-state_g)).detach().numpy().item()
+    return change_max - 5e-7 # try 1e-5? network.min_error
+stop_event.terminal=True
 
 def evolve_odesolver(state_g_torch:torch.Tensor, network:Hopfield_network):
-    t_span = np.array([0,20000], dtype='float32')
+    t_span = np.array([0,200000], dtype='float32')
     n_init_pattern = state_g_torch.shape[0]
     n_neuron = state_g_torch.shape[1]
 
-    retrieved_pattern = np.zeros([n_init_pattern, n_neuron])
+    retrieved_pattern_x = np.zeros([n_init_pattern, n_neuron])
     converge = np.zeros(n_init_pattern).astype('bool')
     retrieval_time = np.zeros(n_init_pattern)
     
     for i in range(n_init_pattern):
         state_x_0 = network.g_inverse(state_g_torch[i], network.beta).numpy()
-        solution = scipy.integrate.solve_ivp(dynamics ,t_span, state_x_0, method = 'RK45', event= (stop_event,event), args=(network,))
-        if solution.y_events is None:
-            retrieved_pattern[i,:] = solution.y[:,-1]
+        try:
+            solution = scipy.integrate.solve_ivp(dynamics ,t_span, state_x_0, method = 'LSODA', events= (stop_event,) , args=(network,))
+            if solution.y_events is None or len(solution.y_events[0])==0:
+                retrieved_pattern_x[i,:] = solution.y[:,-1]
+                converge[i] = False
+                retrieval_time[i] = solution.t[-1]
+            else:
+                retrieved_pattern_x[i,:] = solution.y_events[0]
+                converge[i] = True
+                retrieval_time[i] = solution.t_events[0]
+
+        except:
+            retrieved_pattern_x[i,:] = np.nan
             converge[i] = False
-            retrieval_time[i] = solution.t[-1]
-        else:
-            retrieved_pattern[i,:] = solution.y_events[0]
-            converge[i] = True
-            retrieval_time[i] = solution.t_events[0]
-
+            retrieval_time[i] = np.nan
+            warnings.warn(f"failed to get the solution in iter {i}")
         # for debug & visualization:
-        plt.figure(); plt.plot(solution.t, solution.y.T); plt.show()
-        print(f"iter {i}")
+        # plt.figure(); plt.plot(solution.t, solution.y.T); plt.show()
+        #print(f"iter {i}")
 
-    retrieved_pattern = network.g(retrieved_pattern, network.beta).numpy
+    retrieved_pattern = network.g(retrieved_pattern_x, network.beta).numpy()
 
     return retrieved_pattern, converge, retrieval_time
-    
     
     
 

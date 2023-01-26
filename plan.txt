@@ -79,7 +79,12 @@ I tried a couple of other local optimization methods (L-BFGS-B, Newton-CG): It s
 "differential_evolution": Take too long to run...
 "direct": Not implemented in scipy 1.7.x
 
-Change the differential eq solver from Euler to others, see if it will be faster? use scipy.integrate.solve_ivp() with the event? (But this requires that each initial should be solved separately?
+Change the differential eq solver from Euler to others, see if it will be faster? use scipy.integrate.solve_ivp() with the event? (But this requires that each initial should be solved separately? (Done)
 
 Explore solve_ivp(): see if it can solve a batch of initial state together?(No)
-Solve it iteratively with terminal option: it can successfully solve the equations, but it does not seem to be able to find the event????
+Solve it iteratively with terminal option: (Done)
+
+Todo:
+1. use ode solver and euler method for retrieval with the same init patterns and dynamics, see if the ratio of success are the same, or at least very similar.
+2. decrease the variance of the taus, see if there is some tau that can beat the constant tau.
+3. use optimization method: 1. fmincon()(matlab) and 2. CMA-ES alg. 

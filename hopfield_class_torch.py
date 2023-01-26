@@ -33,14 +33,9 @@ class Hopfield_network(nn.Module):
     def __init__(self, n_neuron, dt=0.1):
         super().__init__()
         self.n_neuron = n_neuron
-        self.tau = nn.Parameter(torch.ones(n_neuron))
+        self.tau = nn.Parameter(torch.ones(n_neuron),requires_grad=False)
         self.beta = nn.Parameter(torch.ones(n_neuron)*10,requires_grad=False)
-        # if dt_train is None:
-        #     alpha = torch.ones(n_neuron)
-        # else:
-        #     alpha = dt_train/self.tau
-        # self.alpha = alpha
-        # self.oneminusalpha = 1-alpha
+
         self.h2h = Symmetric_Linear(n_neuron)
         self.max_x = 50/self.beta.max().item()
         self.dt = dt
@@ -54,6 +49,9 @@ class Hopfield_network(nn.Module):
     def b(self):
         return self.h2h.bias.detach()
 
+    def tau_np(self):
+        return self.tau.detach().numpy()
+
     def set_W(self, W:torch.tensor):
         with torch.no_grad():
             self.h2h.weight = nn.parameter.Parameter(W)
@@ -61,7 +59,15 @@ class Hopfield_network(nn.Module):
     def set_b(self, b:torch.tensor):
         with torch.no_grad():
             self.h2h.bias = nn.Parameter(b)
-    #TODO check how many parameters are there?
+
+    def set_tau(self, tau):
+        with torch.no_grad():
+            if type(tau)==np.ndarray:
+                self.tau = nn.Parameter(torch.from_numpy(tau).float(),requires_grad=False)
+            elif type(tau)==torch.Tensor:
+                self.tau = nn.Parameter(tau.detach(),requires_grad=False)
+            else:
+                raise TypeError("Wrong input type")
 
     def g(self, x, beta): #activation_func
         return torch.sigmoid(beta*x)
@@ -94,15 +100,6 @@ class Hopfield_network(nn.Module):
     #     self.state_g = state_g
     #     self.state_x = self.g_inverse(state_g, self.beta)
     #     self.state_x = torch.clip(self.state_x, -self.max_x, self.max_x)
-
-
-    def set_tau(self, tau):
-        if type(tau)==np.ndarray:
-            self.tau = nn.Parameter(torch.from_numpy(tau).float())
-        elif type(tau)==torch.Tensor:
-            self.tau = nn.Parameter(tau.detach())
-        else:
-            raise TypeError("Wrong input type")
 
 
     def forward(self, state_g, n_step, dt_train):  # This is the forward function for training
@@ -159,6 +156,7 @@ class Hopfield_network(nn.Module):
             converge_matrix = torch.zeros(n_pattern, self.max_loop)
             while n_loop<self.max_loop:
                 old_state_x = state_x
+                old_state_g = state_g
                 if target==None:
                     state_x, state_g = self.recurrence(state_x, state_g, self.dt)
                 else:
@@ -174,52 +172,47 @@ class Hopfield_network(nn.Module):
             converge = n_step<self.max_loop
         return state_g.detach(), converge, n_step*self.dt
     
-    #Testing new alg. here
-    def recurrence_normalized(self, state_x, state_g, dt, use_tau = False):
-        dynamics = self.g_derivative(state_x, self.beta)*(self.h2h(state_g)-state_x)
-        if use_tau:
-            vec_norm = torch.linalg.norm(dynamics, 2, dim = -1, keepdim=True)
-            dynamics_weighted = (1/self.tau) * dynamics
-            unconstrain_norm = torch.linalg.norm(dynamics_weighted, 2, dim = -1, keepdim=True)
-            dynamics = dynamics_weighted/unconstrain_norm*vec_norm
+    # #Testing new alg. here
+    # def recurrence_normalized(self, state_x, state_g, dt, use_tau = False):
+    #     dynamics = self.g_derivative(state_x, self.beta)*(self.h2h(state_g)-state_x)
+    #     if use_tau:
+    #         vec_norm = torch.linalg.norm(dynamics, 2, dim = -1, keepdim=True)
+    #         dynamics_weighted = (1/self.tau) * dynamics
+    #         unconstrain_norm = torch.linalg.norm(dynamics_weighted, 2, dim = -1, keepdim=True)
+    #         dynamics = dynamics_weighted/unconstrain_norm*vec_norm
         
-        B = torch.linalg.norm(dynamics, 2, dim = -1, keepdim=True)
-        dynamics = dynamics/B
-        state_x = state_x + dt*dynamics
-        state_x = torch.clip(state_x, -self.max_x, self.max_x)
-        state_g = self.g(state_x, self.beta)
-        return state_x, state_g
+    #     B = torch.linalg.norm(dynamics, 2, dim = -1, keepdim=True)
+    #     dynamics = dynamics/B
+    #     state_x = state_x + dt*dynamics
+    #     state_x = torch.clip(state_x, -self.max_x, self.max_x)
+    #     state_g = self.g(state_x, self.beta)
+    #     return state_x, state_g
 
-    def evolve_batch_normalized(self, state_g:torch.Tensor, use_tau = False):
-        #state_g is a tensor with size n_patterns *  n_neurons
-        assert state_g.dim()==2, "state_g must be a two dim tensor"
+    # def evolve_batch_normalized(self, state_g:torch.Tensor, use_tau = False):
+    #     #state_g is a tensor with size n_patterns *  n_neurons
+    #     assert state_g.dim()==2, "state_g must be a two dim tensor"
 
-        n_pattern = state_g.shape[0]
-        state_x = self.g_inverse(state_g,self.beta)
-        with torch.no_grad():
-            n_loop=0
-            converge_matrix = torch.zeros(n_pattern, self.max_loop)
-            while n_loop<self.max_loop:
-                old_state_g = state_g
+    #     n_pattern = state_g.shape[0]
+    #     state_x = self.g_inverse(state_g,self.beta)
+    #     with torch.no_grad():
+    #         n_loop=0
+    #         converge_matrix = torch.zeros(n_pattern, self.max_loop)
+    #         while n_loop<self.max_loop:
+    #             old_state_g = state_g
 
-                state_x, state_g = self.recurrence_normalized(state_x, state_g, self.dt, use_tau)
-                # state_x, state_g = self.recurrence(state_x, state_g, self.dt)
+    #             state_x, state_g = self.recurrence_normalized(state_x, state_g, self.dt, use_tau)
+    #             # state_x, state_g = self.recurrence(state_x, state_g, self.dt)
 
-                converge_matrix[:,n_loop] = torch.max(torch.abs(state_g-old_state_g), dim = 1)[0]
+    #             converge_matrix[:,n_loop] = torch.max(torch.abs(state_g-old_state_g), dim = 1)[0]
 
-                n_loop = n_loop+1
-                if torch.max(torch.abs(state_g-old_state_g))<self.min_error_g:
-                    break
+    #             n_loop = n_loop+1
+    #             if torch.max(torch.abs(state_g-old_state_g))<self.min_error_g:
+    #                 break
 
-            n_step = torch.sum(converge_matrix>self.min_error_g, dim=1)+1 # min(max(n_step),self.max_loop))==n_loop
-            converge = n_step<self.max_loop
-        return state_g.detach(), converge, n_step*self.dt
+    #         n_step = torch.sum(converge_matrix>self.min_error_g, dim=1)+1 # min(max(n_step),self.max_loop))==n_loop
+    #         converge = n_step<self.max_loop
+    #     return state_g.detach(), converge, n_step*self.dt
 
-    # This is for scipy.integrate.solve_ivp
-    def dynamics(self, t, state_x):
-        state_g = self.g(state_x, self.beta)
-        dynamics = self.g_derivative(state_x, self.beta)*(self.h2h(state_g)-state_x)
-        return dynamics
 
 
     
